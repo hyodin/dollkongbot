@@ -110,7 +110,7 @@ class VectorDatabase:
         logger.info(f"임베딩 차원 설정: {dimension}")
     
     def insert_documents(self, chunks: List[str], embeddings: List[np.ndarray], 
-                        file_name: str, file_type: str) -> str:
+                        file_name: str, file_type: str, metadata_list: List[Dict] = None) -> str:
         """
         문서 청크들을 벡터 DB에 저장
         
@@ -119,6 +119,7 @@ class VectorDatabase:
             embeddings: 임베딩 벡터 리스트
             file_name: 파일명
             file_type: 파일 형식
+            metadata_list: 각 청크별 메타데이터 리스트 (RAG 최적화용)
             
         Returns:
             파일 ID (UUID)
@@ -133,16 +134,36 @@ class VectorDatabase:
         for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
             point_id = str(uuid.uuid4())
             
-            # 메타데이터 구성
+            # 기본 메타데이터 구성
             payload = {
                 "file_id": file_id,
                 "file_name": file_name,
                 "file_type": file_type,
                 "upload_time": upload_time,
                 "chunk_index": i,
-                "original_text": chunk,
+                "original_text": chunk,  # 임베딩에 사용된 전처리된 텍스트
                 "text_length": len(chunk)
             }
+            
+            # RAG 최적화 메타데이터 추가 (XLSX용)
+            if metadata_list and i < len(metadata_list):
+                metadata = metadata_list[i]
+                payload.update({
+                    "search_text": metadata.get("search_text", chunk),
+                    "context_text": metadata.get("context_text", chunk),
+                    "sheet_name": metadata.get("sheet_name"),
+                    "cell_address": metadata.get("cell_address"),
+                    "col_header": metadata.get("col_header"),
+                    "is_numeric": metadata.get("is_numeric", False),
+                    "row": metadata.get("row"),
+                    "col": metadata.get("col")
+                })
+            else:
+                # 기타 파일 형식의 경우 기존 방식
+                payload.update({
+                    "search_text": chunk,
+                    "context_text": chunk
+                })
             
             # 포인트 생성
             point = models.PointStruct(
@@ -192,18 +213,30 @@ class VectorDatabase:
                 score_threshold=score_threshold
             )
             
-            # 결과 포맷팅
+            # RAG 최적화 결과 포맷팅
             results = []
             for scored_point in search_result:
+                # LLM 컨텍스트용 텍스트 우선 사용, 없으면 original_text 사용
+                context_text = scored_point.payload.get("context_text", scored_point.payload["original_text"])
+                
                 result = {
-                    "text": scored_point.payload["original_text"],
+                    "text": context_text,  # LLM에 전달할 풍부한 컨텍스트
                     "score": float(scored_point.score),
                     "metadata": {
                         "file_name": scored_point.payload["file_name"],
                         "file_type": scored_point.payload["file_type"],
                         "upload_time": scored_point.payload["upload_time"],
                         "chunk_index": scored_point.payload["chunk_index"],
-                        "file_id": scored_point.payload["file_id"]
+                        "file_id": scored_point.payload["file_id"],
+                        # RAG 최적화 메타데이터 추가
+                        "search_text": scored_point.payload.get("search_text"),
+                        "context_text": context_text,
+                        "sheet_name": scored_point.payload.get("sheet_name"),
+                        "cell_address": scored_point.payload.get("cell_address"),
+                        "col_header": scored_point.payload.get("col_header"),
+                        "is_numeric": scored_point.payload.get("is_numeric"),
+                        "row": scored_point.payload.get("row"),
+                        "col": scored_point.payload.get("col")
                     }
                 }
                 results.append(result)

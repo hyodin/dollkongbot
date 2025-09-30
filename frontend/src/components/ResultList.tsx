@@ -215,44 +215,34 @@ const ResultList: React.FC<ResultListProps> = ({
             className="card hover:shadow-lg transition-shadow duration-200 cursor-pointer"
             onClick={() => handleResultClick(result)}
           >
-            {/* 헤더 */}
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center space-x-2">
-                {getFileIcon(result.metadata.file_type)}
-                <h3 className="font-medium text-gray-900 truncate">
-                  {result.metadata.file_name}
-                </h3>
-              </div>
-              <div className={`text-sm font-medium ${getScoreColor(result.score)}`}>
-                {(result.score * 100).toFixed(1)}%
+            {/* 내용 (주요 정보) */}
+            <div className="mb-4">
+              <div className="text-base leading-relaxed text-gray-900 whitespace-pre-line">
+                📋 {highlightText(result.text, query)}
               </div>
             </div>
 
-            {/* 내용 */}
-            <div className="mb-3">
-              <p className="text-gray-800 leading-relaxed overflow-hidden" style={{
-                display: '-webkit-box',
-                WebkitLineClamp: 3,
-                WebkitBoxOrient: 'vertical'
-              }}>
-                {highlightText(result.text, query)}
-              </p>
-            </div>
-
-            {/* 메타데이터 */}
-            <div className="flex items-center justify-between text-sm text-gray-500">
-              <div className="flex items-center space-x-4">
-                <span>
-                  {new Date(result.metadata.upload_time).toLocaleDateString('ko-KR')}
-                </span>
-                <span>청크 {result.metadata.chunk_index + 1}</span>
-                <span className="text-xs bg-gray-100 px-2 py-1 rounded">
-                  {result.metadata.file_type.replace('.', '').toUpperCase()}
-                </span>
+            {/* 출처 및 메타정보 */}
+            <div className="text-sm">
+              <div className="flex items-start space-x-1">
+                <span className="text-gray-600 mt-0.5">📌</span>
+                <div className="text-gray-700">
+                  <span className="font-medium">
+                    {result.metadata.file_name}
+                    {result.metadata.sheet_name && ` > ${result.metadata.sheet_name} 시트`}
+                  </span>
+                  <div className="text-xs text-gray-500 mt-1 ml-3">
+                    관련도: <span className={`font-medium ${getScoreColor(result.score)}`}>
+                      {Math.round(result.score * 100)}%
+                    </span>
+                    {" | "}업로드: {new Date(result.metadata.upload_time).toLocaleDateString('ko-KR', {
+                      year: 'numeric',
+                      month: '2-digit',
+                      day: '2-digit'
+                    }).replace(/\./g, '.').replace(/\.$/, '')}
+                  </div>
+                </div>
               </div>
-              <button className="text-primary-600 hover:text-primary-700 font-medium">
-                자세히 보기 →
-              </button>
             </div>
           </div>
         ))}

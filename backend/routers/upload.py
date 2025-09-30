@@ -145,22 +145,53 @@ async def _process_file(file_content: bytes, file_name: str) -> Dict[str, Any]:
             
             logger.info(f"XLSX 셀 데이터 추출 완료: {len(extracted_data)} 개 셀")
             
-            # 각 셀을 개별 청크로 처리
+            # RAG 챗봇에 최적화된 텍스트 생성
             chunks = []
+            cell_metadata = []
             preprocessor = get_safe_preprocessor()
             
             for cell_data in extracted_data:
-                # 셀 정보를 텍스트로 변환
-                cell_text = f"[{cell_data['cell_address']}] {cell_data['col_header']}: {cell_data['value']}"
-                if cell_data['row_context']:
-                    cell_text += f" (행 컨텍스트: {cell_data['row_context']})"
-                
-                # 전처리
-                preprocessed_cell = preprocessor.preprocess_text(cell_text)
-                if preprocessed_cell:
-                    chunks.append(preprocessed_cell)
+                # 1. 검색(임베딩)용 텍스트 생성 - 핵심 정보만
+                if cell_data['col_header'] and cell_data['col_header'] != f"Column{cell_data['col'][0]}":
+                    search_text = f"{cell_data['col_header']}: {cell_data['value']}"
                 else:
-                    chunks.append(cell_text)  # 전처리 실패시 원본 사용
+                    search_text = cell_data['value']
+                
+                # 2. LLM 컨텍스트용 텍스트 생성 - 풍부한 맥락
+                context_parts = []
+                if cell_data['row_context']:
+                    # 행 컨텍스트를 파싱하여 헤더:값 형식으로 변환
+                    row_values = cell_data['row_context'].split(' | ')
+                    # 간단한 경우: 현재 셀의 헤더:값만 포함
+                    context_parts.append(f"{cell_data['col_header']}: {cell_data['value']}")
+                    # 추가 컨텍스트가 있으면 포함
+                    if len(row_values) > 1:
+                        context_parts.append(f"같은 행 데이터: {cell_data['row_context']}")
+                else:
+                    context_parts.append(f"{cell_data['col_header']}: {cell_data['value']}")
+                
+                context_text = " | ".join(context_parts)
+                
+                # 3. 메타데이터 저장
+                metadata = {
+                    "search_text": search_text,
+                    "context_text": context_text,
+                    "sheet_name": cell_data['sheet'],
+                    "cell_address": cell_data['cell_address'],
+                    "col_header": cell_data['col_header'],
+                    "is_numeric": cell_data['is_numeric'],
+                    "row": cell_data['row'],
+                    "col": cell_data['col']
+                }
+                
+                # 4. 검색용 텍스트를 전처리하여 임베딩용으로 사용
+                preprocessed_search = preprocessor.preprocess_text(search_text)
+                if preprocessed_search:
+                    chunks.append(preprocessed_search)
+                else:
+                    chunks.append(search_text)
+                
+                cell_metadata.append(metadata)
             
             logger.info(f"XLSX 셀 청킹 완료: {len(chunks)} 개 청크")
             text = f"{len(extracted_data)} 개 셀 데이터"
@@ -188,6 +219,16 @@ async def _process_file(file_content: bytes, file_name: str) -> Dict[str, Any]:
             chunker = get_chunker()
             chunks = chunker.chunk_text(preprocessed_text)
             logger.info(f"일반 청킹 완료: {len(chunks)} 개 청크")
+            
+            # 기타 파일용 메타데이터 생성
+            cell_metadata = []
+            for i, chunk in enumerate(chunks):
+                metadata = {
+                    "search_text": chunk,
+                    "context_text": chunk,
+                    "chunk_index": i
+                }
+                cell_metadata.append(metadata)
         
         if not chunks:
             raise ValueError("데이터를 청크로 분할할 수 없습니다")
@@ -202,10 +243,10 @@ async def _process_file(file_content: bytes, file_name: str) -> Dict[str, Any]:
         
         logger.info(f"임베딩 생성 완료: {len(embeddings)} 개")
         
-        # 5. 벡터 DB 저장
+        # 5. 벡터 DB 저장 (메타데이터와 함께)
         logger.info("벡터 DB 저장 시작")
         vector_db = get_vector_db()
-        file_id = vector_db.insert_documents(chunks, embeddings, file_name, file_ext)
+        file_id = vector_db.insert_documents(chunks, embeddings, file_name, file_ext, cell_metadata)
         
         logger.info(f"벡터 DB 저장 완료: 파일 ID {file_id}")
         

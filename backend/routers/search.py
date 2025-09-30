@@ -29,6 +29,10 @@ class SearchResult(BaseModel):
     """검색 결과 항목 모델"""
     text: str = Field(..., description="검색된 텍스트")
     score: float = Field(..., description="유사도 점수")
+    relevance_percent: int = Field(..., description="관련도 퍼센트")
+    source: str = Field(..., description="출처 정보")
+    location: Optional[str] = Field(None, description="문서 내 위치")
+    upload_date: str = Field(..., description="업로드 날짜")
     metadata: Dict[str, Any] = Field(..., description="메타데이터")
 
 
@@ -88,12 +92,27 @@ async def search_documents(request: SearchRequest) -> SearchResponse:
             score_threshold=score_threshold
         )
         
-        # 4. 결과 포맷팅
+        # 4. 결과 포맷팅 및 개선
         formatted_results = []
+        seen_contents = set()  # 중복 제거용
+        
         for result in search_results:
+            # 텍스트 정제
+            cleaned_text = _clean_search_result_text(result["text"])
+            
+            # 중복 제거 (정제된 텍스트 기준)
+            if cleaned_text in seen_contents:
+                continue
+            seen_contents.add(cleaned_text)
+            
+            # 구조화된 검색 결과 생성
             formatted_result = SearchResult(
-                text=result["text"],
+                text=cleaned_text,
                 score=result["score"],
+                relevance_percent=int(result["score"] * 100),
+                source=_format_source_info(result["metadata"]),
+                location=_format_location_info(result["metadata"]),
+                upload_date=_format_upload_date(result["metadata"].get("upload_time", "")),
                 metadata=result["metadata"]
             )
             formatted_results.append(formatted_result)
@@ -266,3 +285,141 @@ async def get_search_stats() -> Dict[str, Any]:
             status_code=500,
             detail="통계 정보 조회 중 오류가 발생했습니다"
         )
+
+
+def _clean_search_result_text(text: str) -> str:
+    """
+    검색 결과 텍스트 정제 및 포맷팅
+    - 불필요한 접두사 제거
+    - 중복 정보 정리
+    - 읽기 쉬운 형태로 포맷팅
+    """
+    if not text:
+        return ""
+    
+    import re
+    
+    # 1. 불필요한 접두사 패턴들 제거
+    unnecessary_prefixes = [
+        "Column1:", "Column2:", "Column3:", "Column4:", "Column5:", "Column6:", "Column7:", "Column8:",
+        "같은 행 데이터:", "행 컨텍스트:", "컨텍스트:",
+        "[Sheet1:", "[시트1:", "[테스트데이터:", "[부서정보:", "[인사휴가규정:",
+    ]
+    
+    cleaned_text = text
+    for prefix in unnecessary_prefixes:
+        if cleaned_text.startswith(prefix):
+            cleaned_text = cleaned_text[len(prefix):].strip()
+    
+    # 2. 중간에 있는 불필요한 패턴들 제거
+    patterns_to_remove = [
+        r'\[.*?!\w+\d+\]',  # [Sheet1!A2] 같은 셀 주소
+        r'같은 행 데이터:.*?\|',  # "같은 행 데이터: ... |" 패턴
+        r'\|\s*같은 행 데이터:.*',  # "| 같은 행 데이터: ..." 패턴
+        r'⑥\s*',  # 특수 번호 기호
+        r'④번의\s*',  # 특수 번호 참조
+    ]
+    
+    for pattern in patterns_to_remove:
+        cleaned_text = re.sub(pattern, '', cleaned_text)
+    
+    # 3. 텍스트 구조화 및 포맷팅
+    cleaned_text = _format_content_structure(cleaned_text)
+    
+    # 4. 중복된 파이프(|) 정리
+    cleaned_text = re.sub(r'\|\s*\|', '|', cleaned_text)
+    cleaned_text = re.sub(r'^\s*\|\s*', '', cleaned_text)
+    cleaned_text = re.sub(r'\s*\|\s*$', '', cleaned_text)
+    
+    # 5. 다중 공백 정리
+    cleaned_text = re.sub(r'\s+', ' ', cleaned_text)
+    
+    # 6. 최종 정리
+    cleaned_text = cleaned_text.strip()
+    
+    # 7. 헤더:값 형식 처리
+    if ':' in cleaned_text and len(cleaned_text.split(':', 1)) == 2:
+        header, value = cleaned_text.split(':', 1)
+        value = value.strip()
+        if header.strip() and not header.strip().startswith('Column'):
+            # 의미있는 헤더가 있으면 제목으로 사용
+            title = header.strip()
+            content = value
+            if len(content) > 100:  # 긴 내용은 구조화
+                content = _format_long_content(content)
+            cleaned_text = f"{title}\n\n{content}"
+        else:
+            cleaned_text = value
+    
+    return cleaned_text
+
+
+def _format_content_structure(text: str) -> str:
+    """내용을 구조화하여 읽기 쉽게 포맷팅"""
+    import re
+    
+    # 숫자 목록 패턴 (1), 2) 등) 을 줄바꿈으로 변환
+    text = re.sub(r'\s*(\d+\))\s*', r'\n- ', text)
+    
+    # "불구하고", "경우" 등의 접속어 뒤에 줄바꿈 추가
+    text = re.sub(r'(불구하고|불구,)\s*', r'\1\n', text)
+    text = re.sub(r'(없음)\s*(\d+\))', r'\1:\n- ', text)
+    
+    # 긴 문장을 의미 단위로 분리
+    text = re.sub(r'(통보)\s*(근로자는)', r'\1\n- \2', text)
+    text = re.sub(r'(함)\s*(\d+\))', r'\1\n- ', text)
+    text = re.sub(r'(미통보시)\s*(회사에서)', r'\1: \2', text)
+    
+    return text
+
+
+def _format_long_content(content: str) -> str:
+    """긴 내용을 읽기 쉽게 포맷팅"""
+    import re
+    
+    # 문장을 의미 단위로 분리하고 불릿 포인트로 변환
+    sentences = re.split(r'[.!?]\s*', content)
+    formatted_sentences = []
+    
+    for sentence in sentences:
+        sentence = sentence.strip()
+        if len(sentence) > 10:  # 의미있는 문장만
+            # 조건문이나 절차를 나타내는 문장은 불릿으로
+            if any(keyword in sentence for keyword in ['전', '시', '경우', '때', '하여', '통보', '결정']):
+                formatted_sentences.append(f"- {sentence}")
+            else:
+                formatted_sentences.append(sentence)
+    
+    return '\n'.join(formatted_sentences)
+
+
+def _format_source_info(metadata: Dict[str, Any]) -> str:
+    """출처 정보 포맷팅"""
+    file_name = metadata.get("file_name", "Unknown")
+    sheet_name = metadata.get("sheet_name")
+    
+    if sheet_name:
+        return f"{file_name} > {sheet_name} 시트"
+    else:
+        return file_name
+
+
+def _format_location_info(metadata: Dict[str, Any]) -> Optional[str]:
+    """문서 내 위치 정보 포맷팅 - 사용자 요구사항에 맞게 간소화"""
+    # 위치 정보는 메타데이터에만 표시하고 주요 출처에서는 제외
+    return None
+
+
+def _format_upload_date(upload_time: str) -> str:
+    """업로드 날짜 포맷팅 - YYYY.MM.DD 형태"""
+    if not upload_time:
+        return "날짜 정보 없음"
+    
+    try:
+        from datetime import datetime
+        # ISO 형식의 날짜를 파싱
+        dt = datetime.fromisoformat(upload_time.replace('Z', '+00:00'))
+        # 사용자가 원하는 형태: 2025.09.30 (점 구분, 0 패딩)
+        return dt.strftime("%Y.%m.%d")
+    except:
+        return upload_time
