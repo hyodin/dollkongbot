@@ -1,0 +1,28 @@
+# FastAPI and web server
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+
+# File processing
+PyPDF2==3.0.1
+python-docx==1.1.0
+openpyxl==3.1.2
+python-multipart==0.0.6
+
+# Korean NLP
+kiwipiepy==0.15.2
+sentence-transformers==2.7.0
+huggingface_hub==0.24.0
+kss==4.5.4
+
+# Vector database
+qdrant-client==1.6.9
+
+# ML and data processing
+torch==2.1.1
+numpy==1.24.4
+transformers==4.44.0
+
+# Utilities
+python-dotenv==1.0.0
+pydantic==2.5.0
+aiofiles==23.2.1
