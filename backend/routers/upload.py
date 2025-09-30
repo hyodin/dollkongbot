@@ -131,34 +131,66 @@ async def _process_file_background(file_content: bytes, file_name: str) -> None:
 async def _process_file(file_content: bytes, file_name: str) -> Dict[str, Any]:
     """파일 처리 메인 로직"""
     try:
-        # 1. 텍스트 추출
-        logger.info(f"텍스트 추출 시작: {file_name}")
-        text = await FileParser.extract_text(file_content, file_name)
+        # 1. 파일 형식 확인
+        file_ext = "." + file_name.lower().split('.')[-1]
         
-        if not text or len(text.strip()) < 10:
-            raise ValueError("추출된 텍스트가 너무 짧습니다")
+        # 2. 데이터 추출 (XLSX vs 기타)
+        logger.info(f"데이터 추출 시작: {file_name}")
+        extracted_data = await FileParser.extract_text(file_content, file_name)
         
-        logger.info(f"텍스트 추출 완료: {len(text)} 문자")
-        
-        # 2. 텍스트 전처리 (안전한 버전)
-        logger.info("텍스트 전처리 시작")
-        preprocessor = get_safe_preprocessor()
-        preprocessed_text = preprocessor.preprocess_text(text)
-        
-        if not preprocessed_text:
-            # 전처리 실패 시 원본 텍스트 사용
-            logger.warning("전처리 실패, 원본 텍스트 사용")
-            preprocessed_text = text
-        
-        # 3. 텍스트 청킹
-        logger.info("텍스트 청킹 시작")
-        chunker = get_chunker()
-        chunks = chunker.chunk_text(preprocessed_text)
+        if file_ext == '.xlsx':
+            # XLSX: 구조화된 셀 데이터 처리
+            if not extracted_data or not isinstance(extracted_data, list):
+                raise ValueError("XLSX 파일에서 셀 데이터를 추출할 수 없습니다")
+            
+            logger.info(f"XLSX 셀 데이터 추출 완료: {len(extracted_data)} 개 셀")
+            
+            # 각 셀을 개별 청크로 처리
+            chunks = []
+            preprocessor = get_safe_preprocessor()
+            
+            for cell_data in extracted_data:
+                # 셀 정보를 텍스트로 변환
+                cell_text = f"[{cell_data['cell_address']}] {cell_data['col_header']}: {cell_data['value']}"
+                if cell_data['row_context']:
+                    cell_text += f" (행 컨텍스트: {cell_data['row_context']})"
+                
+                # 전처리
+                preprocessed_cell = preprocessor.preprocess_text(cell_text)
+                if preprocessed_cell:
+                    chunks.append(preprocessed_cell)
+                else:
+                    chunks.append(cell_text)  # 전처리 실패시 원본 사용
+            
+            logger.info(f"XLSX 셀 청킹 완료: {len(chunks)} 개 청크")
+            text = f"{len(extracted_data)} 개 셀 데이터"
+            preprocessed_text = f"{len(chunks)} 개 전처리된 셀"
+            
+        else:
+            # 기타 파일: 기존 텍스트 처리 방식
+            if not extracted_data or not isinstance(extracted_data, str) or len(extracted_data.strip()) < 10:
+                raise ValueError("추출된 텍스트가 너무 짧습니다")
+            
+            text = extracted_data
+            logger.info(f"텍스트 추출 완료: {len(text)} 문자")
+            
+            # 텍스트 전처리
+            logger.info("텍스트 전처리 시작")
+            preprocessor = get_safe_preprocessor()
+            preprocessed_text = preprocessor.preprocess_text(text)
+            
+            if not preprocessed_text:
+                logger.warning("전처리 실패, 원본 텍스트 사용")
+                preprocessed_text = text
+            
+            # 일반 청킹
+            logger.info("텍스트 청킹 시작")
+            chunker = get_chunker()
+            chunks = chunker.chunk_text(preprocessed_text)
+            logger.info(f"일반 청킹 완료: {len(chunks)} 개 청크")
         
         if not chunks:
-            raise ValueError("텍스트를 청크로 분할할 수 없습니다")
-        
-        logger.info(f"청킹 완료: {len(chunks)} 개 청크")
+            raise ValueError("데이터를 청크로 분할할 수 없습니다")
         
         # 4. 임베딩 생성
         logger.info("임베딩 생성 시작")
@@ -173,8 +205,7 @@ async def _process_file(file_content: bytes, file_name: str) -> Dict[str, Any]:
         # 5. 벡터 DB 저장
         logger.info("벡터 DB 저장 시작")
         vector_db = get_vector_db()
-        file_type = "." + file_name.lower().split('.')[-1]
-        file_id = vector_db.insert_documents(chunks, embeddings, file_name, file_type)
+        file_id = vector_db.insert_documents(chunks, embeddings, file_name, file_ext)
         
         logger.info(f"벡터 DB 저장 완료: 파일 ID {file_id}")
         
@@ -184,10 +215,10 @@ async def _process_file(file_content: bytes, file_name: str) -> Dict[str, Any]:
             "message": "파일 처리가 완료되었습니다",
             "file_id": file_id,
             "file_name": file_name,
-            "file_type": file_type,
+            "file_type": file_ext,
             "chunks_saved": len(chunks),
-            "text_length": len(text),
-            "preprocessed_length": len(preprocessed_text)
+            "text_length": len(str(text)),
+            "preprocessed_length": len(str(preprocessed_text))
         }
         
     except Exception as e:

@@ -6,11 +6,12 @@
 import io
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union, List, Dict, Any
 
 import PyPDF2
 from docx import Document
 from openpyxl import load_workbook
+from openpyxl.utils import get_column_letter
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +23,7 @@ class FileParser:
     MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
     
     @classmethod
-    async def extract_text(cls, file_content: bytes, filename: str) -> str:
+    async def extract_text(cls, file_content: bytes, filename: str) -> Union[str, List[Dict[str, Any]]]:
         """
         파일 내용에서 텍스트 추출
         
@@ -31,7 +32,8 @@ class FileParser:
             filename: 파일명 (확장자 포함)
             
         Returns:
-            추출된 텍스트
+            XLSX: 구조화된 셀 데이터 리스트
+            기타: 추출된 텍스트 문자열
             
         Raises:
             ValueError: 지원하지 않는 파일 형식
@@ -117,39 +119,77 @@ class FileParser:
             raise RuntimeError(f"DOCX 처리 오류: {str(e)}")
     
     @staticmethod
-    async def _extract_from_xlsx(file_content: bytes) -> str:
-        """XLSX 파일에서 텍스트 추출"""
+    async def _extract_from_xlsx(file_content: bytes) -> List[Dict[str, Any]]:
+        """XLSX 파일에서 구조화된 셀 데이터 추출"""
         try:
             xlsx_file = io.BytesIO(file_content)
             workbook = load_workbook(xlsx_file, read_only=True, data_only=True)
             
-            text_parts = []
+            cell_data = []
             
             for sheet_name in workbook.sheetnames:
                 sheet = workbook[sheet_name]
-                sheet_text = []
                 
-                # 시트의 모든 셀에서 텍스트 추출
-                for row in sheet.iter_rows(values_only=True):
-                    row_text = []
-                    for cell_value in row:
+                # 시트가 비어있으면 건너뛰기
+                if sheet.max_row == 0:
+                    continue
+                
+                # 첫 번째 행을 헤더로 저장
+                headers = {}
+                first_row = list(sheet.iter_rows(min_row=1, max_row=1, values_only=True))[0]
+                for col_idx, header_value in enumerate(first_row, 1):
+                    if header_value is not None:
+                        headers[col_idx] = str(header_value).strip()
+                    else:
+                        headers[col_idx] = f"Column{col_idx}"
+                
+                # 2행부터 데이터 처리
+                for row_idx in range(2, sheet.max_row + 1):
+                    row_values = list(sheet.iter_rows(min_row=row_idx, max_row=row_idx, values_only=True))[0]
+                    
+                    # 행 컨텍스트 생성 (같은 행의 모든 값들)
+                    row_context_parts = []
+                    for val in row_values:
+                        if val is not None:
+                            val_str = str(val).strip()
+                            if val_str:
+                                row_context_parts.append(val_str)
+                    row_context = " | ".join(row_context_parts) if row_context_parts else ""
+                    
+                    # 각 셀 처리
+                    for col_idx, cell_value in enumerate(row_values, 1):
                         if cell_value is not None:
                             cell_str = str(cell_value).strip()
-                            if cell_str:
-                                row_text.append(cell_str)
-                    
-                    if row_text:
-                        sheet_text.append(' | '.join(row_text))
-                
-                if sheet_text:
-                    text_parts.append(f"[{sheet_name}]\n" + '\n'.join(sheet_text))
+                            if cell_str and len(cell_str) > 0:  # 빈 문자열이 아닌 경우
+                                col_letter = get_column_letter(col_idx)
+                                
+                                # 숫자 여부 판단
+                                is_numeric = False
+                                try:
+                                    float(cell_str)
+                                    is_numeric = True
+                                except ValueError:
+                                    pass
+                                
+                                cell_info = {
+                                    "sheet": sheet_name,
+                                    "row": row_idx,
+                                    "col": col_letter,
+                                    "cell_address": f"{sheet_name}!{col_letter}{row_idx}",
+                                    "value": cell_str,
+                                    "row_context": row_context,
+                                    "col_header": headers.get(col_idx, f"Column{col_idx}"),
+                                    "is_numeric": is_numeric
+                                }
+                                cell_data.append(cell_info)
             
             workbook.close()
             
-            if not text_parts:
-                raise RuntimeError("XLSX에서 텍스트를 추출할 수 없습니다")
+            if not cell_data:
+                raise RuntimeError("XLSX에서 데이터를 추출할 수 없습니다")
             
-            return '\n\n'.join(text_parts)
+            logger.info(f"XLSX 셀 데이터 추출 완료: {len(cell_data)}개 셀")
+            return cell_data
             
         except Exception as e:
             raise RuntimeError(f"XLSX 처리 오류: {str(e)}")
