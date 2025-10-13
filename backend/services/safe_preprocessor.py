@@ -165,3 +165,4 @@ def get_safe_preprocessor() -> SafeKoreanPreprocessor:
     if _safe_preprocessor_instance is None:
         _safe_preprocessor_instance = SafeKoreanPreprocessor()
     return _safe_preprocessor_instance
+

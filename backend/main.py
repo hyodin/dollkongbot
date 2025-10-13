@@ -7,17 +7,22 @@ import logging
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
+from dotenv import load_dotenv
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+# .env 파일 로드
+load_dotenv()
+
 # 로컬 모듈 import를 위한 경로 추가
 sys.path.append(str(Path(__file__).parent))
 
-from routers import upload, search
+from routers import upload, search, chat
 from services.embedder import get_embedder
 from services.vector_db import get_vector_db
+from services.gemini_service import initialize_gemini_service
 
 # 로깅 설정
 logging.basicConfig(
@@ -55,6 +60,13 @@ async def lifespan(app: FastAPI):
             logger.info(f"벡터 DB 통계: {stats}")
         else:
             raise RuntimeError("벡터 데이터베이스 연결 실패")
+        
+        # Gemini LLM 서비스 초기화
+        llm_initialized = await initialize_gemini_service()
+        if llm_initialized:
+            logger.info("LLM 서비스 초기화 완료 (Google Gemini Pro)")
+        else:
+            logger.warning("LLM 서비스 초기화 실패 - RAG 기능이 제한됩니다")
         
         logger.info("모든 서비스 초기화 완료")
         
@@ -108,6 +120,7 @@ async def global_exception_handler(request, exc):
 # 라우터 등록
 app.include_router(upload.router, prefix="/api", tags=["파일 업로드"])
 app.include_router(search.router, prefix="/api", tags=["문서 검색"])
+app.include_router(chat.router, tags=["RAG 채팅"])
 
 
 # 루트 엔드포인트

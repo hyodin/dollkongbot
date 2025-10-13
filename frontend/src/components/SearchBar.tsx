@@ -78,7 +78,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
     }
 
     try {
-      const response = await apiClient.searchDocuments(finalQuery, 5, 0.3);
+      const response = await apiClient.searchDocuments(finalQuery, 5, 0.1);
       
       if (onSearch) {
         onSearch(finalQuery, response);

@@ -235,3 +235,4 @@ def get_chunker() -> TextChunker:
     if _chunker_instance is None:
         _chunker_instance = TextChunker()
     return _chunker_instance
+

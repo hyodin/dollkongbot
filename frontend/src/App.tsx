@@ -10,6 +10,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import FileUpload from './components/FileUpload';
 import SearchBar from './components/SearchBar';
 import ResultList from './components/ResultList';
+import ChatInterface from './components/ChatInterface';
 import apiClient, { SearchResponse, SearchResult, UploadResponse, DocumentInfo } from './api/client';
 
 function App() {
@@ -20,6 +21,7 @@ function App() {
   const [documents, setDocuments] = useState<DocumentInfo[]>([]);
   const [processingTime, setProcessingTime] = useState<number>(0);
   const [stats, setStats] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState<'search' | 'chat'>('search');
 
   // 컴포넌트 마운트 시 문서 목록 로드
   useEffect(() => {
@@ -120,7 +122,7 @@ function App() {
                   한국어 문서 벡터 검색
                 </h1>
                 <p className="text-sm text-gray-500">
-                  KoSBERT + Qdrant 기반 의미 검색
+                  KoSBERT + Qdrant + Gemma-2-9B RAG 시스템
                 </p>
               </div>
             </div>
@@ -217,42 +219,78 @@ function App() {
             </div>
           </div>
 
-          {/* 우측: 검색 */}
+          {/* 우측: 검색/채팅 탭 */}
           <div className="lg:col-span-2 space-y-6">
-            {/* 검색바 */}
+            {/* 탭 네비게이션 */}
             <div className="card">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                🔍 문서 검색
-              </h2>
-              <SearchBar
-                onSearch={handleSearch}
-                onSearchStart={handleSearchStart}
-                onSearchError={handleSearchError}
-                autoFocus={true}
-              />
-            </div>
-
-            {/* 검색 결과 */}
-            <div className="card">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-900">
-                  📋 검색 결과
-                </h2>
-                {currentQuery && (
-                  <div className="text-sm text-gray-500">
-                    "{currentQuery}" 검색 결과
-                    {processingTime > 0 && ` (${processingTime}초)`}
-                  </div>
-                )}
+              <div className="flex border-b border-gray-200">
+                <button
+                  onClick={() => setActiveTab('search')}
+                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    activeTab === 'search'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  🔍 문서 검색
+                </button>
+                <button
+                  onClick={() => setActiveTab('chat')}
+                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    activeTab === 'chat'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  🤖 RAG 채팅
+                </button>
               </div>
-
-              <ResultList
-                results={searchResults}
-                query={currentQuery}
-                isLoading={isSearching}
-                onResultClick={handleResultClick}
-              />
             </div>
+
+            {/* 탭 컨텐츠 */}
+            {activeTab === 'search' ? (
+              <>
+                {/* 검색바 */}
+                <div className="card">
+                  <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                    🔍 문서 검색
+                  </h2>
+                  <SearchBar
+                    onSearch={handleSearch}
+                    onSearchStart={handleSearchStart}
+                    onSearchError={handleSearchError}
+                    autoFocus={true}
+                  />
+                </div>
+
+                {/* 검색 결과 */}
+                <div className="card">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-semibold text-gray-900">
+                      📋 검색 결과
+                    </h2>
+                    {currentQuery && (
+                      <div className="text-sm text-gray-500">
+                        "{currentQuery}" 검색 결과
+                        {processingTime > 0 && ` (${processingTime}초)`}
+                      </div>
+                    )}
+                  </div>
+
+                  <ResultList
+                    results={searchResults}
+                    query={currentQuery}
+                    isLoading={isSearching}
+                    onResultClick={handleResultClick}
+                  />
+                </div>
+              </>
+            ) : (
+              /* RAG 채팅 인터페이스 */
+              <div className="h-[600px]">
+                <ChatInterface className="h-full" />
+              </div>
+            )}
           </div>
         </div>
       </main>
@@ -265,7 +303,7 @@ function App() {
               © 2025 한국어 문서 벡터 검색 시스템
             </div>
             <div className="flex items-center space-x-4 text-sm text-gray-500">
-              <span>KoSBERT + Qdrant</span>
+              <span>KoSBERT + Qdrant + Gemma-2-9B</span>
               <span>•</span>
               <span>FastAPI + React</span>
             </div>

@@ -63,6 +63,44 @@ export interface DocumentsResponse {
   };
 }
 
+// RAG 채팅 인터페이스
+export interface ChatRequest {
+  question: string;
+  use_context?: boolean;
+  max_results?: number;
+  score_threshold?: number;
+  max_tokens?: number;
+}
+
+export interface ContextDocument {
+  text: string;
+  score: number;
+  source: string;
+  metadata: any;
+}
+
+export interface ChatResponse {
+  answer: string;
+  question: string;
+  context_used: boolean;
+  context_documents: ContextDocument[];
+  model_info: {
+    llm_model: string;
+    embedding_model: string;
+    vector_db: string;
+  };
+  processing_time: {
+    total: number;
+    search: number;
+    generation: number;
+  };
+  token_usage: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
+}
+
 class ApiClient {
   private client: AxiosInstance;
 
@@ -259,6 +297,36 @@ class ApiClient {
     status: string;
   }> {
     const response = await this.client.get('/');
+    return response.data;
+  }
+
+  /**
+   * RAG 채팅
+   */
+  async chatWithDocuments(request: ChatRequest): Promise<ChatResponse> {
+    const response = await this.client.post<ChatResponse>('/chat', request, {
+      timeout: 90000, // 90초 타임아웃으로 증가
+    });
+    return response.data;
+  }
+
+  /**
+   * 채팅 시스템 상태 확인
+   */
+  async checkChatHealth(): Promise<{
+    status: string;
+    services: {
+      llm: string;
+      vector_db: string;
+      embedder: string;
+    };
+    capabilities: {
+      rag_chat: boolean;
+      document_search: boolean;
+      llm_generation: boolean;
+    };
+  }> {
+    const response = await this.client.get('/chat/health');
     return response.data;
   }
 }

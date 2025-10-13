@@ -65,3 +65,4 @@ echo 중지하려면: docker stop qdrant
 echo 재시작하려면: docker start qdrant
 echo.
 pause
+
