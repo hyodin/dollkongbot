@@ -22,14 +22,14 @@ class GeminiLLMService:
     
     def __init__(self, 
                  api_key: Optional[str] = None,
-                 model: str = "gemini-2.5-pro",
+                 model: str = "gemini-2.0-flash",
                  timeout: int = 60):
         """
         Gemini LLM 서비스 초기화
         
         Args:
             api_key: Google API 키
-            model: 사용할 모델명 (gemini-2.5-pro)
+            model: 사용할 모델명 (gemini-2.0-flash)
             timeout: 응답 타임아웃 (초)
         """
         self.api_key = api_key or os.getenv("GOOGLE_API_KEY")
