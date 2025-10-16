@@ -122,7 +122,7 @@ function App() {
                   한국어 문서 벡터 검색
                 </h1>
                 <p className="text-sm text-gray-500">
-                  KoSBERT + Qdrant + Gemma-2-9B RAG 시스템
+                  KoSBERT + Qdrant + Gemini RAG 시스템
                 </p>
               </div>
             </div>
@@ -303,7 +303,7 @@ function App() {
               © 2025 한국어 문서 벡터 검색 시스템
             </div>
             <div className="flex items-center space-x-4 text-sm text-gray-500">
-              <span>KoSBERT + Qdrant + Gemma-2-9B</span>
+              <span>KoSBERT + Qdrant + Gemini</span>
               <span>•</span>
               <span>FastAPI + React</span>
             </div>

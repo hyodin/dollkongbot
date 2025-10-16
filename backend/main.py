@@ -1,6 +1,17 @@
 """
 FastAPI 메인 애플리케이션
 한국어 문서 벡터 검색 시스템 백엔드
+
+주요 기능:
+1. 문서 업로드 및 벡터화 (PDF, DOCX, XLSX, TXT)
+2. 의미 기반 문서 검색 (KoSBERT + Qdrant)
+3. RAG 기반 채팅 (Gemini LLM)
+
+기술 스택:
+- FastAPI: 고성능 비동기 웹 프레임워크
+- KoSBERT: 한국어 문장 임베딩 (768차원)
+- Qdrant: 벡터 데이터베이스
+- Google Gemini Pro: LLM (RAG용)
 """
 
 import logging
@@ -13,71 +24,135 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-# .env 파일 로드
-load_dotenv()
-
-# 로컬 모듈 import를 위한 경로 추가
-sys.path.append(str(Path(__file__).parent))
-
-from routers import upload, search, chat
-from services.embedder import get_embedder
-from services.vector_db import get_vector_db
-from services.gemini_service import initialize_gemini_service
-
-# 로깅 설정
+# ============================================================
+# 로깅 설정 - 가장 먼저 설정해야 모든 로그가 출력됨
+# ============================================================
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler('app.log', encoding='utf-8')
-    ]
+        logging.StreamHandler(sys.stdout),  # 콘솔 출력 (stdout 명시)
+        logging.FileHandler('app.log', encoding='utf-8')  # 파일 출력
+    ],
+    force=True  # 기존 설정 강제 덮어쓰기
 )
 
 logger = logging.getLogger(__name__)
 
+# ============================================================
+# 초기화 시작
+# ============================================================
+logger.info("=" * 80)
+logger.info("FastAPI 애플리케이션 초기화 시작")
+logger.info("=" * 80)
+
+# .env 파일 로드 (환경변수: GOOGLE_API_KEY 등)
+load_dotenv()
+logger.info("✓ 환경 변수 로드 완료 (.env)")
+
+# 로컬 모듈 import를 위한 경로 추가
+sys.path.append(str(Path(__file__).parent))
+logger.info(f"✓ Python 경로 추가: {Path(__file__).parent}")
+
+# 라우터 및 서비스 import
+logger.info("모듈 import 시작...")
+from routers import upload, search, chat
+from services.embedder import get_embedder
+from services.vector_db import get_vector_db
+from services.gemini_service import initialize_gemini_service
+logger.info("✓ 모듈 import 완료")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """애플리케이션 시작/종료 시 실행되는 함수"""
+    """
+    애플리케이션 라이프사이클 관리
+    
+    시작 시:
+    1. 임베딩 모델 초기화 (KoSBERT)
+    2. 벡터 DB 연결 확인 (Qdrant)
+    3. LLM 서비스 초기화 (Gemini)
+    
+    종료 시:
+    - 리소스 정리 및 로그 출력
+    """
+    logger.info("=" * 80)
     logger.info("=== 한국어 문서 벡터 검색 시스템 시작 ===")
+    logger.info("=" * 80)
     
     try:
-        # 서비스 초기화 확인
-        logger.info("서비스 초기화 중...")
+        # === 1단계: 임베딩 모델 초기화 ===
+        logger.info("━" * 60)
+        logger.info("1단계: 임베딩 모델 초기화 시작")
+        logger.info("━" * 60)
         
-        # 임베딩 모델 초기화
         embedder = get_embedder()
         model_info = embedder.get_model_info()
-        logger.info(f"임베딩 모델 정보: {model_info}")
         
-        # 벡터 DB 초기화 및 임베딩 차원 동기화
+        logger.info(f"✓ 모델명: {model_info['model_name']}")
+        logger.info(f"✓ 임베딩 차원: {model_info['embedding_dim']}")
+        logger.info(f"✓ 디바이스: {model_info['device']}")
+        logger.info(f"✓ 최대 시퀀스 길이: {model_info['max_seq_length']}")
+        logger.info("1단계 완료: 임베딩 모델 준비 완료")
+        
+        # === 2단계: 벡터 DB 초기화 ===
+        logger.info("━" * 60)
+        logger.info("2단계: 벡터 데이터베이스 초기화 시작")
+        logger.info("━" * 60)
+        
         vector_db = get_vector_db()
         vector_db.set_embedding_dimension(model_info["embedding_dim"])
         
         if vector_db.health_check():
             stats = vector_db.get_document_stats()
-            logger.info(f"벡터 DB 통계: {stats}")
+            logger.info(f"✓ 벡터 DB 상태: 정상")
+            logger.info(f"✓ 저장된 청크 수: {stats.get('total_chunks', 0)}")
+            logger.info(f"✓ 컬렉션명: {stats.get('collection_name', 'N/A')}")
+            logger.info(f"✓ 임베딩 차원: {stats.get('embedding_dim', 'N/A')}")
         else:
             raise RuntimeError("벡터 데이터베이스 연결 실패")
         
-        # Gemini LLM 서비스 초기화
+        logger.info("2단계 완료: 벡터 DB 준비 완료")
+        
+        # === 3단계: LLM 서비스 초기화 ===
+        logger.info("━" * 60)
+        logger.info("3단계: LLM 서비스 초기화 시작 (Google Gemini)")
+        logger.info("━" * 60)
+        
         llm_initialized = await initialize_gemini_service()
         if llm_initialized:
-            logger.info("LLM 서비스 초기화 완료 (Google Gemini Pro)")
+            logger.info("✓ LLM 서비스: Google Gemini Pro 준비 완료")
+            logger.info("✓ RAG 채팅 기능: 활성화")
         else:
-            logger.warning("LLM 서비스 초기화 실패 - RAG 기능이 제한됩니다")
+            logger.warning("⚠ LLM 서비스 초기화 실패")
+            logger.warning("⚠ RAG 채팅 기능이 제한됩니다")
         
-        logger.info("모든 서비스 초기화 완료")
+        logger.info("3단계 완료: LLM 서비스 준비 완료")
+        
+        # === 초기화 완료 ===
+        logger.info("=" * 80)
+        logger.info("🚀 모든 서비스 초기화 완료 - 서버 준비됨")
+        logger.info("=" * 80)
+        logger.info(f"📍 API 문서: http://localhost:8000/docs")
+        logger.info(f"📍 헬스체크: http://localhost:8000/health")
+        logger.info("=" * 80)
         
     except Exception as e:
-        logger.error(f"서비스 초기화 실패: {str(e)}")
+        logger.error("=" * 80)
+        logger.error(f"❌ 서비스 초기화 실패: {str(e)}")
+        logger.error("=" * 80)
         raise
     
-    yield  # 애플리케이션 실행
+    # 애플리케이션 실행 (yield)
+    yield
     
-    # 종료 시 정리
-    logger.info("=== 애플리케이션 종료 ===")
+    # === 종료 시 정리 ===
+    logger.info("=" * 80)
+    logger.info("=== 애플리케이션 종료 중 ===")
+    logger.info("=" * 80)
+    logger.info("리소스 정리 완료")
+    logger.info("서버 종료 완료")
+    logger.info("=" * 80)
 
 
 # FastAPI 앱 생성
@@ -126,29 +201,63 @@ app.include_router(chat.router, tags=["RAG 채팅"])
 # 루트 엔드포인트
 @app.get("/")
 async def root():
-    """API 루트 엔드포인트"""
+    """
+    API 루트 엔드포인트
+    
+    Returns:
+        시스템 기본 정보 및 API 문서 링크
+    """
+    logger.debug("루트 엔드포인트 호출")
     return {
         "message": "한국어 문서 벡터 검색 시스템 API",
         "version": "1.0.0",
         "docs": "/docs",
-        "status": "running"
+        "status": "running",
+        "features": [
+            "문서 업로드 (PDF, DOCX, XLSX, TXT)",
+            "벡터 검색 (KoSBERT + Qdrant)",
+            "RAG 채팅 (Gemini Pro)"
+        ]
     }
 
 
 # 헬스체크 엔드포인트
 @app.get("/health")
 async def health_check():
-    """시스템 상태 확인"""
+    """
+    시스템 상태 확인 엔드포인트
+    
+    확인 항목:
+    1. 벡터 DB 연결 상태
+    2. 임베딩 모델 로딩 상태
+    3. 모델 정보
+    
+    Returns:
+        서비스 상태 정보
+        
+    Raises:
+        HTTPException: 서비스 상태 확인 실패 시 (503)
+    """
+    logger.info("헬스체크 요청 수신")
+    
     try:
-        # 각 서비스 상태 확인
+        # 1. 벡터 DB 상태 확인
+        logger.debug("벡터 DB 상태 확인 중...")
         vector_db = get_vector_db()
         db_status = vector_db.health_check()
+        logger.debug(f"벡터 DB 상태: {'정상' if db_status else '오류'}")
         
+        # 2. 임베딩 모델 상태 확인
+        logger.debug("임베딩 모델 상태 확인 중...")
         embedder = get_embedder()
         model_info = embedder.get_model_info()
+        logger.debug(f"임베딩 모델 상태: 정상 (차원: {model_info['embedding_dim']})")
         
-        return {
-            "status": "healthy" if db_status else "unhealthy",
+        # 전체 상태 결정
+        overall_status = "healthy" if db_status else "unhealthy"
+        
+        result = {
+            "status": overall_status,
             "services": {
                 "vector_db": "online" if db_status else "offline",
                 "embedder": "online",
@@ -157,8 +266,11 @@ async def health_check():
             "timestamp": "2025-09-30T10:00:00Z"
         }
         
+        logger.info(f"헬스체크 완료 - 전체 상태: {overall_status}")
+        return result
+        
     except Exception as e:
-        logger.error(f"헬스체크 실패: {str(e)}")
+        logger.error(f"❌ 헬스체크 실패: {str(e)}", exc_info=True)
         raise HTTPException(status_code=503, detail="서비스 상태 확인 실패")
 
 
