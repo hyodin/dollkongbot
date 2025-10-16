@@ -1,0 +1,44 @@
+morphological_analysis:
+  enabled: true
+  target_pos_tags:
+  - NNG
+  - NNP
+  - VV
+  - VA
+  - MAG
+  use_kiwi: true
+normalization:
+  enabled: true
+  fallback_on_error: true
+  log_level: INFO
+sentence_splitting:
+  enabled: true
+  use_kss: true
+stopwords:
+  enabled: true
+  endings:
+  - 입니다
+  - 습니다
+  - 하다
+  others:
+  - 것
+  - 수
+  - 때
+  particles:
+  - 이
+  - 가
+  - 을
+  - 를
+  - 은
+  - 는
+  pronouns:
+  - 그
+  - 이
+  - 저
+text_cleaning:
+  enabled: true
+  special_chars:
+    remove_pattern: '[^\w\s가-힣.,!?;:\-]'
+  whitespace:
+    normalize: true
+    trim: true

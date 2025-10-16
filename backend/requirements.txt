@@ -26,6 +26,7 @@ transformers==4.44.0
 python-dotenv==1.0.0
 pydantic==2.5.0
 aiofiles==23.2.1
+pyyaml==6.0.1
 
 # LLM Integration
 aiohttp==3.9.1
