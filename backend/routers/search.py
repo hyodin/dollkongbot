@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from services.safe_preprocessor import get_safe_preprocessor
 from services.embedder import get_embedder
 from services.vector_db import get_vector_db
+from qdrant_client.http import models
 
 logger = logging.getLogger(__name__)
 
@@ -246,6 +247,227 @@ async def get_search_suggestions(
             "query": q,
             "suggestions": []
         }
+
+
+@router.get("/hierarchy/lvl1")
+async def get_lvl1_categories() -> Dict[str, Any]:
+    """
+    계층형 구조의 대분류(lvl1) 목록 조회
+    
+    Returns:
+        대분류 목록
+    """
+    try:
+        vector_db = get_vector_db()
+        
+        # 벡터 DB에서 distinct lvl1 값들 조회
+        # 실제로는 Qdrant의 scroll 기능을 사용하여 모든 데이터를 조회하고
+        # lvl1 값을 추출해야 합니다
+        scroll_result = vector_db.client.scroll(
+            collection_name=vector_db.collection_name,
+            limit=1000,
+            with_payload=True,
+            with_vectors=False
+        )
+        
+        lvl1_categories = set()
+        for point in scroll_result[0]:
+            lvl1 = point.payload.get("lvl1", "")
+            if lvl1 and lvl1.strip():
+                lvl1_categories.add(lvl1.strip())
+        
+        return {
+            "status": "success",
+            "lvl1_categories": sorted(list(lvl1_categories)),
+            "count": len(lvl1_categories)
+        }
+        
+    except Exception as e:
+        logger.error(f"대분류 조회 실패: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="대분류 조회 중 오류가 발생했습니다"
+        )
+
+
+@router.get("/hierarchy/lvl2/{lvl1}")
+async def get_lvl2_categories(lvl1: str) -> Dict[str, Any]:
+    """
+    특정 대분류에 속한 중분류(lvl2) 목록 조회
+    
+    Args:
+        lvl1: 대분류명
+        
+    Returns:
+        중분류 목록
+    """
+    try:
+        vector_db = get_vector_db()
+        
+        # 특정 lvl1에 해당하는 데이터만 필터링하여 조회
+        search_result = vector_db.client.scroll(
+            collection_name=vector_db.collection_name,
+            scroll_filter=models.Filter(
+                must=[
+                    models.FieldCondition(
+                        key="lvl1",
+                        match=models.MatchValue(value=lvl1)
+                    )
+                ]
+            ),
+            limit=1000,
+            with_payload=True,
+            with_vectors=False
+        )
+        
+        lvl2_categories = set()
+        for point in search_result[0]:
+            lvl2 = point.payload.get("lvl2", "")
+            if lvl2 and lvl2.strip():
+                lvl2_categories.add(lvl2.strip())
+        
+        return {
+            "status": "success",
+            "lvl1": lvl1,
+            "lvl2_categories": sorted(list(lvl2_categories)),
+            "count": len(lvl2_categories)
+        }
+        
+    except Exception as e:
+        logger.error(f"중분류 조회 실패: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="중분류 조회 중 오류가 발생했습니다"
+        )
+
+
+@router.get("/hierarchy/lvl3/{lvl1}/{lvl2}")
+async def get_lvl3_categories(lvl1: str, lvl2: str) -> Dict[str, Any]:
+    """
+    특정 대분류/중분류에 속한 소분류(lvl3) 목록 조회
+    
+    Args:
+        lvl1: 대분류명
+        lvl2: 중분류명
+        
+    Returns:
+        소분류 목록
+    """
+    try:
+        vector_db = get_vector_db()
+        
+        # 특정 lvl1, lvl2에 해당하는 데이터만 필터링하여 조회
+        search_result = vector_db.client.scroll(
+            collection_name=vector_db.collection_name,
+            scroll_filter=models.Filter(
+                must=[
+                    models.FieldCondition(
+                        key="lvl1",
+                        match=models.MatchValue(value=lvl1)
+                    ),
+                    models.FieldCondition(
+                        key="lvl2",
+                        match=models.MatchValue(value=lvl2)
+                    )
+                ]
+            ),
+            limit=1000,
+            with_payload=True,
+            with_vectors=False
+        )
+        
+        lvl3_categories = set()
+        for point in search_result[0]:
+            lvl3 = point.payload.get("lvl3", "")
+            if lvl3 and lvl3.strip():
+                lvl3_categories.add(lvl3.strip())
+        
+        return {
+            "status": "success",
+            "lvl1": lvl1,
+            "lvl2": lvl2,
+            "lvl3_categories": sorted(list(lvl3_categories)),
+            "count": len(lvl3_categories)
+        }
+        
+    except Exception as e:
+        logger.error(f"소분류 조회 실패: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="소분류 조회 중 오류가 발생했습니다"
+        )
+
+
+@router.get("/hierarchy/lvl4/{lvl1}/{lvl2}/{lvl3}")
+async def get_lvl4_content(lvl1: str, lvl2: str, lvl3: str) -> Dict[str, Any]:
+    """
+    특정 계층 구조의 상세 내용(lvl4) 조회
+    
+    Args:
+        lvl1: 대분류명
+        lvl2: 중분류명
+        lvl3: 소분류명
+        
+    Returns:
+        상세 내용 및 관련 정보
+    """
+    try:
+        vector_db = get_vector_db()
+        
+        # 특정 계층 구조에 해당하는 데이터 조회
+        search_result = vector_db.client.scroll(
+            collection_name=vector_db.collection_name,
+            scroll_filter=models.Filter(
+                must=[
+                    models.FieldCondition(
+                        key="lvl1",
+                        match=models.MatchValue(value=lvl1)
+                    ),
+                    models.FieldCondition(
+                        key="lvl2",
+                        match=models.MatchValue(value=lvl2)
+                    ),
+                    models.FieldCondition(
+                        key="lvl3",
+                        match=models.MatchValue(value=lvl3)
+                    )
+                ]
+            ),
+            limit=100,
+            with_payload=True,
+            with_vectors=False
+        )
+        
+        contents = []
+        for point in search_result[0]:
+            lvl4 = point.payload.get("lvl4", "")
+            if lvl4 and lvl4.strip():
+                content_info = {
+                    "content": lvl4,
+                    "context_text": point.payload.get("context_text", ""),
+                    "source": point.payload.get("file_name", ""),
+                    "sheet_name": point.payload.get("sheet_name", ""),
+                    "cell_address": point.payload.get("cell_address", "")
+                }
+                contents.append(content_info)
+        
+        return {
+            "status": "success",
+            "hierarchy": {
+                "lvl1": lvl1,
+                "lvl2": lvl2,
+                "lvl3": lvl3
+            },
+            "contents": contents,
+            "count": len(contents)
+        }
+        
+    except Exception as e:
+        logger.error(f"상세 내용 조회 실패: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="상세 내용 조회 중 오류가 발생했습니다"
+        )
 
 
 @router.get("/search/stats")
