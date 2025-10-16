@@ -157,22 +157,46 @@ async def _process_file(file_content: bytes, file_name: str) -> Dict[str, Any]:
                 else:
                     search_text = cell_data['value']
                 
-                # 2. LLM 컨텍스트용 텍스트 생성 - 풍부한 맥락
+                # 계층형 정보를 검색 텍스트에 포함
+                lvl_parts = []
+                if cell_data.get('lvl1'):
+                    lvl_parts.append(cell_data['lvl1'])
+                if cell_data.get('lvl2'):
+                    lvl_parts.append(cell_data['lvl2'])
+                if cell_data.get('lvl3'):
+                    lvl_parts.append(cell_data['lvl3'])
+                
+                if lvl_parts:
+                    search_text = f"{' > '.join(lvl_parts)} | {search_text}"
+                
+                # 2. LLM 컨텍스트용 텍스트 생성 - 풍부한 맥락 (계층형 정보 포함)
                 context_parts = []
+                
+                # 계층형 구조 정보 추가
+                if cell_data.get('lvl1') or cell_data.get('lvl2') or cell_data.get('lvl3'):
+                    hierarchy_info = []
+                    if cell_data.get('lvl1'):
+                        hierarchy_info.append(f"대분류: {cell_data['lvl1']}")
+                    if cell_data.get('lvl2'):
+                        hierarchy_info.append(f"중분류: {cell_data['lvl2']}")
+                    if cell_data.get('lvl3'):
+                        hierarchy_info.append(f"소분류: {cell_data['lvl3']}")
+                    context_parts.append(f"분류 체계: {' > '.join(hierarchy_info)}")
+                
+                # 셀 정보 추가
+                context_parts.append(f"{cell_data['col_header']}: {cell_data['value']}")
+                
+                # 상세 내용 추가 (lvl4)
+                if cell_data.get('lvl4'):
+                    context_parts.append(f"상세 내용: {cell_data['lvl4']}")
+                
+                # 행 컨텍스트 추가
                 if cell_data['row_context']:
-                    # 행 컨텍스트를 파싱하여 헤더:값 형식으로 변환
-                    row_values = cell_data['row_context'].split(' | ')
-                    # 간단한 경우: 현재 셀의 헤더:값만 포함
-                    context_parts.append(f"{cell_data['col_header']}: {cell_data['value']}")
-                    # 추가 컨텍스트가 있으면 포함
-                    if len(row_values) > 1:
-                        context_parts.append(f"같은 행 데이터: {cell_data['row_context']}")
-                else:
-                    context_parts.append(f"{cell_data['col_header']}: {cell_data['value']}")
+                    context_parts.append(f"관련 정보: {cell_data['row_context']}")
                 
                 context_text = " | ".join(context_parts)
                 
-                # 3. 메타데이터 저장
+                # 3. 메타데이터 저장 (계층형 컬럼 포함)
                 metadata = {
                     "search_text": search_text,
                     "context_text": context_text,
@@ -181,7 +205,12 @@ async def _process_file(file_content: bytes, file_name: str) -> Dict[str, Any]:
                     "col_header": cell_data['col_header'],
                     "is_numeric": cell_data['is_numeric'],
                     "row": cell_data['row'],
-                    "col": cell_data['col']
+                    "col": cell_data['col'],
+                    # 계층형 컬럼 추가
+                    "lvl1": cell_data.get('lvl1', ''),
+                    "lvl2": cell_data.get('lvl2', ''),
+                    "lvl3": cell_data.get('lvl3', ''),
+                    "lvl4": cell_data.get('lvl4', '')
                 }
                 
                 # 4. 검색용 텍스트를 전처리하여 임베딩용으로 사용

@@ -1,5 +1,10 @@
 """
 RAG 채팅 API 라우터
+
+주요 기능:
+1. 질문 정규화 (query_normalizer)
+2. 벡터 검색 (Qdrant)
+3. LLM 답변 생성 (Gemini)
 """
 
 import logging
@@ -12,6 +17,7 @@ from services.vector_db import get_vector_db
 from services.embedder import get_embedder
 from services.safe_preprocessor import get_safe_preprocessor
 from services.gemini_service import get_gemini_service, ChatMessage, initialize_gemini_service
+from services.query_normalizer import get_query_normalizer  # 질문 정규화 모듈
 
 logger = logging.getLogger(__name__)
 
@@ -95,15 +101,45 @@ async def chat_with_documents(request: ChatRequest):
         # 2. 문서 검색 (컨텍스트 사용 시)
         if request.use_context:
             try:
-                logger.info(f"🔍 RAG 검색 시작 - 원본 질문: '{request.question}'")
+                logger.info("=" * 70)
+                logger.info(f"🔍 RAG 검색 시작")
+                logger.info("=" * 70)
+                logger.info(f"원본 질문: '{request.question}'")
                 
-                # 전처리 건너뛰고 원본 질문 직접 사용 (문제 해결을 위해)
-                processed_query = request.question.strip()
-                logger.info(f"📝 원본 질문 직접 사용: '{processed_query}'")
+                # ============================================================
+                # Step 2-1: 질문 정규화 (새로 추가!)
+                # ============================================================
+                logger.info("━" * 60)
+                logger.info("Step 2-1: 질문 정규화 프로세스")
+                logger.info("━" * 60)
                 
-                # 키워드 확장 건너뛰고 직접 임베딩 (문제 해결을 위해)
+                try:
+                    normalizer = get_query_normalizer()
+                    processed_query = normalizer.normalize(request.question)
+                    
+                    logger.info(f"✅ 질문 정규화 완료")
+                    logger.info(f"   원본: '{request.question}'")
+                    logger.info(f"   정규화: '{processed_query}'")
+                    
+                    # 정규화 결과가 너무 짧으면 원본 사용
+                    if len(processed_query.strip()) < 2:
+                        logger.warning("⚠ 정규화 결과가 너무 짧음 - 원본 사용")
+                        processed_query = request.question.strip()
+                    
+                    # 정규화 통계 로깅
+                    stats = normalizer.get_stats()
+                    logger.debug(f"정규화 통계: {stats}")
+                    
+                except Exception as norm_error:
+                    logger.error(f"❌ 질문 정규화 실패: {str(norm_error)}")
+                    logger.warning("⚠ 원본 질문 사용 (fallback)")
+                    processed_query = request.question.strip()
+                
+                # ============================================================
+                # Step 2-2: 최종 쿼리 준비
+                # ============================================================
                 final_query = processed_query
-                logger.info(f"🔍 최종 검색 질문: '{final_query}'")
+                logger.info(f"✓ 최종 검색 쿼리: '{final_query}'")
                 
                 # 임베딩 생성
                 logger.info("🧠 임베딩 생성 시작...")

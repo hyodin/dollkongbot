@@ -265,7 +265,12 @@ class VectorDatabase:
                     "col_header": metadata.get("col_header"),
                     "is_numeric": metadata.get("is_numeric", False),
                     "row": metadata.get("row"),
-                    "col": metadata.get("col")
+                    "col": metadata.get("col"),
+                    # 계층형 컬럼 추가
+                    "lvl1": metadata.get("lvl1", ""),
+                    "lvl2": metadata.get("lvl2", ""),
+                    "lvl3": metadata.get("lvl3", ""),
+                    "lvl4": metadata.get("lvl4", "")
                 })
             else:
                 payload.update({
@@ -393,7 +398,12 @@ class VectorDatabase:
                         "col_header": scored_point.payload.get("col_header"),
                         "is_numeric": scored_point.payload.get("is_numeric"),
                         "row": scored_point.payload.get("row"),
-                        "col": scored_point.payload.get("col")
+                        "col": scored_point.payload.get("col"),
+                        # 계층형 컬럼 추가
+                        "lvl1": scored_point.payload.get("lvl1", ""),
+                        "lvl2": scored_point.payload.get("lvl2", ""),
+                        "lvl3": scored_point.payload.get("lvl3", ""),
+                        "lvl4": scored_point.payload.get("lvl4", "")
                     }
                 }
                 results.append(result)
