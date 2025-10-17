@@ -101,6 +101,19 @@ export interface ChatResponse {
   };
 }
 
+// FAQ 관련 인터페이스
+export interface FAQResponse {
+  status: string;
+  data?: string[];
+  message?: string;
+}
+
+export interface FAQAnswerResponse {
+  status: string;
+  answer?: string;
+  message?: string;
+}
+
 class ApiClient {
   private client: AxiosInstance;
 
@@ -327,6 +340,46 @@ class ApiClient {
     };
   }> {
     const response = await this.client.get('/chat/health');
+    return response.data;
+  }
+
+  /**
+   * FAQ lvl1 키워드 목록 조회
+   */
+  async getFAQLevel1Keywords(): Promise<FAQResponse> {
+    const response = await this.client.get<FAQResponse>('/faq/lvl1');
+    return response.data;
+  }
+
+  /**
+   * FAQ lvl2 키워드 목록 조회
+   */
+  async getFAQLevel2Keywords(): Promise<FAQResponse> {
+    const response = await this.client.get<FAQResponse>('/faq/lvl2');
+    return response.data;
+  }
+
+  /**
+   * 특정 lvl1 키워드에 속한 lvl2 키워드 목록 조회
+   */
+  async getFAQLevel2ByLevel1(lvl1Keyword: string): Promise<FAQResponse> {
+    const response = await this.client.get<FAQResponse>(`/faq/lvl2/${encodeURIComponent(lvl1Keyword)}`);
+    return response.data;
+  }
+
+  /**
+   * 특정 lvl2 키워드에 속한 lvl3 질문 목록 조회
+   */
+  async getFAQLevel3Questions(lvl2Keyword: string): Promise<FAQResponse> {
+    const response = await this.client.get<FAQResponse>(`/faq/lvl3/${encodeURIComponent(lvl2Keyword)}`);
+    return response.data;
+  }
+
+  /**
+   * 특정 lvl3 질문에 대한 lvl4 답변 조회
+   */
+  async getFAQAnswer(lvl3Question: string): Promise<FAQAnswerResponse> {
+    const response = await this.client.get<FAQAnswerResponse>(`/faq/answer/${encodeURIComponent(lvl3Question)}`);
     return response.data;
   }
 }
