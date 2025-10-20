@@ -106,7 +106,7 @@ logger.info(f"✓ Python 경로 추가: {Path(__file__).parent}")
 
 # 라우터 및 서비스 import
 logger.info("모듈 import 시작...")
-from routers import upload, search, chat
+from routers import upload, search, chat, faq
 from services.embedder import get_embedder
 from services.vector_db import get_vector_db
 from services.gemini_service import initialize_gemini_service
@@ -246,6 +246,7 @@ async def global_exception_handler(request, exc):
 app.include_router(upload.router, prefix="/api", tags=["파일 업로드"])
 app.include_router(search.router, prefix="/api", tags=["문서 검색"])
 app.include_router(chat.router, tags=["RAG 채팅"])
+app.include_router(faq.router, prefix="/api", tags=["FAQ"])
 
 
 # 루트 엔드포인트

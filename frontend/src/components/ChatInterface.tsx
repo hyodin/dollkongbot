@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { toast } from 'react-toastify';
-import apiClient from '../api/client';
+import apiClient, { FAQResponse, FAQAnswerResponse } from '../api/client';
 
 interface ChatMessage {
   id: string;
@@ -40,6 +40,14 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
   const [maxResults, setMaxResults] = useState(5);
   const [scoreThreshold, setScoreThreshold] = useState(0.1);
   
+  // FAQ 관련 상태
+  const [faqLevel1Keywords, setFaqLevel1Keywords] = useState<string[]>([]);
+  const [faqLevel2Keywords, setFaqLevel2Keywords] = useState<string[]>([]);
+  const [faqLevel3Questions, setFaqLevel3Questions] = useState<string[]>([]);
+  const [selectedLevel1, setSelectedLevel1] = useState<string>('');
+  const [selectedLevel2, setSelectedLevel2] = useState<string>('');
+  const [isLoadingFAQ, setIsLoadingFAQ] = useState(false);
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -51,6 +59,125 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // FAQ lvl1 키워드 로드
+  useEffect(() => {
+    loadFAQLevel1Keywords();
+  }, []);
+
+  // FAQ lvl1 키워드 로드 함수
+  const loadFAQLevel1Keywords = async () => {
+    try {
+      setIsLoadingFAQ(true);
+      const response = await apiClient.getFAQLevel1Keywords();
+      if (response.status === 'success' && response.data) {
+        setFaqLevel1Keywords(response.data);
+      } else {
+        setFaqLevel1Keywords([]);
+      }
+    } catch (error) {
+      console.error('FAQ lvl1 키워드 로드 실패:', error);
+      setFaqLevel1Keywords([]);
+      toast.error('FAQ 키워드를 불러오는데 실패했습니다.');
+    } finally {
+      setIsLoadingFAQ(false);
+    }
+  };
+
+  // lvl1 키워드 클릭 핸들러
+  const handleLevel1Click = async (keyword: string) => {
+    try {
+      setIsLoadingFAQ(true);
+      setSelectedLevel1(keyword);
+      const response = await apiClient.getFAQLevel2ByLevel1(keyword);
+      if (response.status === 'success' && response.data) {
+        setFaqLevel2Keywords(response.data);
+        // 이전 단계 상태 초기화
+        setFaqLevel3Questions([]);
+        setSelectedLevel2('');
+      } else {
+        setFaqLevel2Keywords([]);
+        toast.info(`'${keyword}' 주제에 등록된 하위 키워드가 없습니다.`);
+      }
+    } catch (error) {
+      console.error('FAQ lvl2 키워드 로드 실패:', error);
+      setFaqLevel2Keywords([]);
+      toast.error('FAQ 키워드를 불러오는데 실패했습니다.');
+    } finally {
+      setIsLoadingFAQ(false);
+    }
+  };
+
+  // lvl2 키워드 클릭 핸들러
+  const handleLevel2Click = async (keyword: string) => {
+    try {
+      setIsLoadingFAQ(true);
+      setSelectedLevel2(keyword);
+      const response = await apiClient.getFAQLevel3Questions(keyword);
+      if (response.status === 'success' && response.data) {
+        setFaqLevel3Questions(response.data);
+      } else {
+        setFaqLevel3Questions([]);
+        toast.info(`'${keyword}' 주제에 등록된 질문이 없습니다.`);
+      }
+    } catch (error) {
+      console.error('FAQ lvl3 질문 로드 실패:', error);
+      setFaqLevel3Questions([]);
+      toast.error('FAQ 질문을 불러오는데 실패했습니다.');
+    } finally {
+      setIsLoadingFAQ(false);
+    }
+  };
+
+  // lvl3 질문 클릭 핸들러
+  const handleLevel3Click = async (question: string) => {
+    try {
+      setIsLoadingFAQ(true);
+      const response = await apiClient.getFAQAnswer(question);
+      if (response.status === 'success' && response.answer) {
+        // 답변을 채팅 메시지로 추가
+        const assistantMessage: ChatMessage = {
+          id: Date.now().toString(),
+          role: 'assistant',
+          content: response.answer,
+          timestamp: new Date()
+        };
+        setMessages(prev => [...prev, assistantMessage]);
+        
+        // FAQ 상태 초기화
+        setFaqLevel1Keywords([]);
+        setFaqLevel2Keywords([]);
+        setFaqLevel3Questions([]);
+        setSelectedLevel1('');
+        setSelectedLevel2('');
+        
+        // lvl1 키워드 다시 로드
+        loadFAQLevel1Keywords();
+        
+        toast.success('FAQ 답변을 불러왔습니다.');
+      } else {
+        toast.warning('해당 질문에 대한 답변을 찾을 수 없습니다.');
+      }
+    } catch (error) {
+      console.error('FAQ 답변 로드 실패:', error);
+      toast.error('FAQ 답변을 불러오는데 실패했습니다.');
+    } finally {
+      setIsLoadingFAQ(false);
+    }
+  };
+
+  // FAQ 뒤로가기 핸들러들
+  const resetToLevel1 = () => {
+    setFaqLevel2Keywords([]);
+    setFaqLevel3Questions([]);
+    setSelectedLevel1('');
+    setSelectedLevel2('');
+  };
+
+  const resetToLevel2 = () => {
+    setFaqLevel3Questions([]);
+    setSelectedLevel2('');
+  };
 
   // 메시지 전송
   const handleSendMessage = async () => {
@@ -235,27 +362,86 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
             <h3 className="text-lg font-semibold text-gray-700 mb-2">사내규정 AI 어시스턴트</h3>
             <p className="mb-4">업로드된 사내규정 문서를 바탕으로 정확한 답변을 제공합니다.</p>
             
-            {/* 예시 질문들 */}
+            {/* FAQ 키워드 영역 */}
             <div className="max-w-2xl mx-auto">
-              <p className="text-sm font-medium text-gray-600 mb-3">💡 이런 질문을 해보세요:</p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
-                {[
-                  "연차 휴가는 몇 일까지 사용할 수 있나요?",
-                  "출장비 신청 절차는 어떻게 되나요?",
-                  "야근 수당은 어떻게 계산되나요?",
-                  "교육 지원 제도에 대해 알려주세요",
-                  "경조사 휴가 기준은 무엇인가요?",
-                  "보안 규정 위반 시 처벌은 어떻게 되나요?"
-                ].map((question, index) => (
-                  <button
-                    key={index}
-                    onClick={() => setInputMessage(question)}
-                    className="p-2 text-left bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition-colors"
-                  >
-                    "{question}"
-                  </button>
-                ))}
-              </div>
+              <p className="text-sm font-medium text-gray-600 mb-3">💡 사내규정 관련 궁금한 주제를 선택해보세요:</p>
+              
+              {isLoadingFAQ ? (
+                <div className="flex justify-center items-center py-4">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
+                  <span className="ml-2 text-gray-600">FAQ를 불러오는 중...</span>
+                </div>
+              ) : faqLevel3Questions.length > 0 ? (
+                // lvl3 질문 목록 표시
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium text-gray-700">
+                      {selectedLevel2} 관련 질문
+                    </p>
+                    <button
+                      onClick={resetToLevel2}
+                      className="text-xs text-blue-600 hover:text-blue-800 underline"
+                    >
+                      ← 뒤로가기
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-2 text-sm">
+                    {faqLevel3Questions.map((question, index) => (
+                      <button
+                        key={index}
+                        onClick={() => handleLevel3Click(question)}
+                        className="px-4 py-2 text-left bg-green-50 hover:bg-green-100 rounded-lg border border-green-200 transition-colors whitespace-nowrap"
+                      >
+                        {question}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : faqLevel2Keywords.length > 0 ? (
+                // lvl2 키워드 목록 표시
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium text-gray-700">
+                      {selectedLevel1} 하위 키워드
+                    </p>
+                    <button
+                      onClick={resetToLevel1}
+                      className="text-xs text-blue-600 hover:text-blue-800 underline"
+                    >
+                      ← 뒤로가기
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-2 text-sm">
+                    {faqLevel2Keywords.map((keyword, index) => (
+                      <button
+                        key={index}
+                        onClick={() => handleLevel2Click(keyword)}
+                        className="px-4 py-2 text-left bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition-colors whitespace-nowrap"
+                      >
+                        {keyword}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : faqLevel1Keywords.length > 0 ? (
+                // lvl1 키워드 목록 표시
+                <div className="flex flex-wrap gap-2 text-sm">
+                  {faqLevel1Keywords.map((keyword, index) => (
+                    <button
+                      key={index}
+                      onClick={() => handleLevel1Click(keyword)}
+                      className="px-4 py-2 text-left bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition-colors whitespace-nowrap"
+                    >
+                      {keyword}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                // FAQ가 없을 때
+                <div className="text-center py-4">
+                  <p className="text-gray-500">등록된 FAQ가 없습니다.</p>
+                </div>
+              )}
             </div>
           </div>
         ) : (

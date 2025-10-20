@@ -588,6 +588,206 @@ class VectorDatabase:
             logger.error(f"❌ 파일 목록 조회 실패: {str(e)}")
             return []
 
+    def get_faq_lvl1_keywords(self) -> List[str]:
+        """
+        FAQ lvl1 키워드 목록 조회
+        
+        Returns:
+            lvl1 키워드 리스트 (중복 제거, 정렬)
+        """
+        logger.info("FAQ lvl1 키워드 조회 중...")
+        
+        try:
+            # 모든 포인트 스크롤하여 lvl1 필드 수집
+            scroll_result = self.client.scroll(
+                collection_name=self.collection_name,
+                limit=10000,  # 더 많은 데이터 조회
+                with_payload=True,
+                with_vectors=False
+            )
+            
+            lvl1_keywords = set()
+            for point in scroll_result[0]:
+                lvl1 = point.payload.get("lvl1", "")
+                if lvl1 and lvl1.strip():  # 빈 문자열 제외
+                    lvl1_keywords.add(lvl1.strip())
+            
+            # 정렬하여 반환
+            sorted_keywords = sorted(list(lvl1_keywords))
+            logger.info(f"✓ lvl1 키워드 조회 완료 - {len(sorted_keywords)}개")
+            
+            return sorted_keywords
+            
+        except Exception as e:
+            logger.error(f"❌ lvl1 키워드 조회 실패: {str(e)}")
+            return []
+
+    def get_faq_lvl2_keywords(self) -> List[str]:
+        """
+        FAQ lvl2 키워드 목록 조회
+        
+        Returns:
+            lvl2 키워드 리스트 (중복 제거, 정렬)
+        """
+        logger.info("FAQ lvl2 키워드 조회 중...")
+        
+        try:
+            # 모든 포인트 스크롤하여 lvl2 필드 수집
+            scroll_result = self.client.scroll(
+                collection_name=self.collection_name,
+                limit=10000,  # 더 많은 데이터 조회
+                with_payload=True,
+                with_vectors=False
+            )
+            
+            lvl2_keywords = set()
+            for point in scroll_result[0]:
+                lvl2 = point.payload.get("lvl2", "")
+                if lvl2 and lvl2.strip():  # 빈 문자열 제외
+                    lvl2_keywords.add(lvl2.strip())
+            
+            # 정렬하여 반환
+            sorted_keywords = sorted(list(lvl2_keywords))
+            logger.info(f"✓ lvl2 키워드 조회 완료 - {len(sorted_keywords)}개")
+            
+            return sorted_keywords
+            
+        except Exception as e:
+            logger.error(f"❌ lvl2 키워드 조회 실패: {str(e)}")
+            return []
+
+    def get_faq_lvl2_by_lvl1(self, lvl1_keyword: str) -> List[str]:
+        """
+        특정 lvl1 키워드에 속한 lvl2 키워드 목록 조회
+        
+        Args:
+            lvl1_keyword: lvl1 키워드
+            
+        Returns:
+            lvl2 키워드 리스트 (중복 제거, 정렬)
+        """
+        logger.info(f"lvl1 '{lvl1_keyword}'의 lvl2 키워드 조회 중...")
+        
+        try:
+            # lvl1 키워드로 필터링하여 검색
+            search_result = self.client.scroll(
+                collection_name=self.collection_name,
+                scroll_filter=models.Filter(
+                    must=[
+                        models.FieldCondition(
+                            key="lvl1",
+                            match=models.MatchValue(value=lvl1_keyword)
+                        )
+                    ]
+                ),
+                limit=10000,
+                with_payload=True,
+                with_vectors=False
+            )
+            
+            lvl2_keywords = set()
+            for point in search_result[0]:
+                lvl2 = point.payload.get("lvl2", "")
+                if lvl2 and lvl2.strip():  # 빈 문자열 제외
+                    lvl2_keywords.add(lvl2.strip())
+            
+            # 정렬하여 반환
+            sorted_keywords = sorted(list(lvl2_keywords))
+            logger.info(f"✓ lvl2 키워드 조회 완료 - {len(sorted_keywords)}개")
+            
+            return sorted_keywords
+            
+        except Exception as e:
+            logger.error(f"❌ lvl2 키워드 조회 실패: {str(e)}")
+            return []
+
+    def get_faq_lvl3_questions(self, lvl2_keyword: str) -> List[str]:
+        """
+        특정 lvl2 키워드에 속한 lvl3 질문 목록 조회
+        
+        Args:
+            lvl2_keyword: lvl2 키워드
+            
+        Returns:
+            lvl3 질문 리스트 (중복 제거, 정렬)
+        """
+        logger.info(f"lvl2 '{lvl2_keyword}'의 lvl3 질문 조회 중...")
+        
+        try:
+            # lvl2 키워드로 필터링하여 검색
+            search_result = self.client.scroll(
+                collection_name=self.collection_name,
+                scroll_filter=models.Filter(
+                    must=[
+                        models.FieldCondition(
+                            key="lvl2",
+                            match=models.MatchValue(value=lvl2_keyword)
+                        )
+                    ]
+                ),
+                limit=10000,
+                with_payload=True,
+                with_vectors=False
+            )
+            
+            lvl3_questions = set()
+            for point in search_result[0]:
+                lvl3 = point.payload.get("lvl3", "")
+                if lvl3 and lvl3.strip():  # 빈 문자열 제외
+                    lvl3_questions.add(lvl3.strip())
+            
+            # 정렬하여 반환
+            sorted_questions = sorted(list(lvl3_questions))
+            logger.info(f"✓ lvl3 질문 조회 완료 - {len(sorted_questions)}개")
+            
+            return sorted_questions
+            
+        except Exception as e:
+            logger.error(f"❌ lvl3 질문 조회 실패: {str(e)}")
+            return []
+
+    def get_faq_answer(self, lvl3_question: str) -> Optional[str]:
+        """
+        특정 lvl3 질문에 대한 lvl4 답변 조회
+        
+        Args:
+            lvl3_question: lvl3 질문
+            
+        Returns:
+            lvl4 답변 (첫 번째 매칭 결과)
+        """
+        logger.info(f"lvl3 '{lvl3_question}'의 답변 조회 중...")
+        
+        try:
+            # lvl3 질문으로 필터링하여 검색
+            search_result = self.client.scroll(
+                collection_name=self.collection_name,
+                scroll_filter=models.Filter(
+                    must=[
+                        models.FieldCondition(
+                            key="lvl3",
+                            match=models.MatchValue(value=lvl3_question)
+                        )
+                    ]
+                ),
+                limit=1,  # 첫 번째 결과만
+                with_payload=True,
+                with_vectors=False
+            )
+            
+            if search_result[0]:
+                lvl4_answer = search_result[0][0].payload.get("lvl4", "")
+                if lvl4_answer and lvl4_answer.strip():
+                    logger.info("✓ 답변 조회 완료")
+                    return lvl4_answer.strip()
+            
+            logger.warning("해당 질문에 대한 답변을 찾을 수 없습니다")
+            return None
+            
+        except Exception as e:
+            logger.error(f"❌ 답변 조회 실패: {str(e)}")
+            return None
+
 
 # 싱글톤 인스턴스
 _vectordb_instance = None
