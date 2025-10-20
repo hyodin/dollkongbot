@@ -275,12 +275,45 @@ class FileParser:
         return lvl1, lvl2, lvl3, lvl4
     
     @staticmethod
-    async def _extract_from_docx(file_content: bytes) -> str:
-        """DOCX 파일에서 텍스트 추출"""
+    async def _extract_from_docx(file_content: bytes) -> Union[str, List[Dict[str, Any]]]:
+        """DOCX 파일에서 텍스트 및 구조 추출"""
         try:
             docx_file = io.BytesIO(file_content)
             doc = Document(docx_file)
             
+            logger.info("DOCX 파일 구조 분석 시작")
+            
+            # 구조화된 데이터 추출 시도
+            structured_data = []
+            
+            # 1. 문단 구조 분석
+            paragraph_data = FileParser._extract_docx_paragraphs(doc.paragraphs)
+            if paragraph_data:
+                structured_data.extend(paragraph_data)
+                logger.info(f"문단에서 {len(paragraph_data)}개 항목 추출")
+            
+            # 2. 표 구조 분석
+            table_data = FileParser._extract_docx_tables(doc.tables)
+            if table_data:
+                structured_data.extend(table_data)
+                logger.info(f"표에서 {len(table_data)}개 항목 추출")
+            
+            if structured_data:
+                logger.info(f"DOCX 구조화 데이터 추출 완료: {len(structured_data)}개 항목")
+                return structured_data
+            else:
+                # 구조화 실패 시 기존 방식으로 폴백
+                logger.warning("구조화 추출 실패, 기존 텍스트 방식으로 폴백")
+                return await FileParser._extract_from_docx_fallback(doc)
+                
+        except Exception as e:
+            logger.error(f"DOCX 처리 오류: {str(e)}")
+            raise RuntimeError(f"DOCX 처리 오류: {str(e)}")
+    
+    @staticmethod
+    async def _extract_from_docx_fallback(doc) -> str:
+        """DOCX 파일에서 텍스트 추출 (기존 방식)"""
+        try:
             text_parts = []
             
             # 문단 텍스트 추출
@@ -304,7 +337,164 @@ class FileParser:
             return '\n'.join(text_parts)
             
         except Exception as e:
-            raise RuntimeError(f"DOCX 처리 오류: {str(e)}")
+            raise RuntimeError(f"DOCX 폴백 처리 오류: {str(e)}")
+    
+    @staticmethod
+    def _extract_docx_paragraphs(paragraphs) -> List[Dict[str, Any]]:
+        """DOCX 문단에서 구조화된 데이터 추출"""
+        structured_data = []
+        current_lvl1 = ""
+        current_lvl2 = ""
+        current_lvl3 = ""
+        
+        logger.info(f"문단 처리 시작: {len(paragraphs)}개 문단")
+        
+        for para_idx, paragraph in enumerate(paragraphs):
+            text = paragraph.text.strip()
+            if not text:
+                continue
+            
+            # 제목/조항 패턴 감지
+            lvl1, lvl2, lvl3, lvl4 = FileParser._extract_docx_structure(text, paragraph)
+            
+            # 계층형 구조 업데이트 (forward fill)
+            if lvl1:
+                current_lvl1 = lvl1
+                current_lvl2 = ""
+                current_lvl3 = ""
+                logger.info(f"조항 발견: {lvl1}")
+            elif lvl2:
+                current_lvl2 = lvl2
+                current_lvl3 = ""
+                logger.debug(f"소항목 발견: {lvl2}")
+            elif lvl3:
+                current_lvl3 = lvl3
+                logger.debug(f"세부항목 발견: {lvl3}")
+            
+            # lvl4가 없으면 전체 텍스트를 lvl4로 사용
+            if not lvl4:
+                lvl4 = text
+            
+            # 구조화된 데이터 생성
+            if text:  # 빈 텍스트가 아닌 경우만
+                structured_data.append({
+                    "page": 1,  # DOCX는 페이지 정보가 없으므로 1로 설정
+                    "table": 0,
+                    "row": para_idx + 1,
+                    "col": 1,
+                    "header": "문단",
+                    "value": text,
+                    "lvl1": current_lvl1,
+                    "lvl2": current_lvl2,
+                    "lvl3": current_lvl3,
+                    "lvl4": lvl4,
+                    "row_context": text,
+                    "paragraph_style": paragraph.style.name if paragraph.style else "Normal"
+                })
+        
+        logger.info(f"문단 처리 완료: {len(structured_data)}개 항목 추출")
+        return structured_data
+    
+    @staticmethod
+    def _extract_docx_tables(tables) -> List[Dict[str, Any]]:
+        """DOCX 표에서 구조화된 데이터 추출"""
+        structured_data = []
+        
+        logger.info(f"표 처리 시작: {len(tables)}개 표")
+        
+        for table_idx, table in enumerate(tables, 1):
+            logger.info(f"표 {table_idx} 처리 중... (행 수: {len(table.rows)})")
+            
+            if not table.rows:
+                logger.warning(f"표 {table_idx}이 비어있습니다")
+                continue
+            
+            # 헤더 추출 (첫 번째 행)
+            headers = []
+            if table.rows:
+                first_row = table.rows[0]
+                for cell in first_row.cells:
+                    headers.append(cell.text.strip())
+            
+            logger.info(f"표 {table_idx} 헤더: {headers}")
+            
+            # 데이터 행 처리
+            processed_rows = 0
+            for row_idx, row in enumerate(table.rows[1:], 1):
+                if not row.cells:
+                    continue
+                
+                # 행 데이터 추출
+                row_data = []
+                for cell in row.cells:
+                    row_data.append(cell.text.strip())
+                
+                # 계층형 구조 추출
+                lvl1, lvl2, lvl3, lvl4 = FileParser._extract_hierarchical_structure(headers, row_data)
+                
+                if lvl1 or lvl2 or lvl3 or lvl4:
+                    logger.debug(f"표 {table_idx} 행 {row_idx} 계층형 구조: lvl1={lvl1}, lvl2={lvl2}, lvl3={lvl3}, lvl4={lvl4}")
+                
+                # 각 셀별로 데이터 생성
+                row_cells = 0
+                for col_idx, (header, value) in enumerate(zip(headers, row_data)):
+                    if value:  # 값이 있는 셀만 처리
+                        structured_data.append({
+                            "page": 1,
+                            "table": table_idx,
+                            "row": row_idx,
+                            "col": col_idx + 1,
+                            "header": header,
+                            "value": value,
+                            "lvl1": lvl1,
+                            "lvl2": lvl2,
+                            "lvl3": lvl3,
+                            "lvl4": lvl4,
+                            "row_context": " | ".join([v for v in row_data if v])
+                        })
+                        row_cells += 1
+                
+                if row_cells > 0:
+                    processed_rows += 1
+                    logger.debug(f"표 {table_idx} 행 {row_idx} 처리 완료: {row_cells}개 셀")
+            
+            logger.info(f"표 {table_idx} 처리 완료: {processed_rows}개 행, {len([item for item in structured_data if item.get('table') == table_idx])}개 셀")
+        
+        logger.info(f"표 처리 완료: {len(structured_data)}개 항목 추출")
+        return structured_data
+    
+    @staticmethod
+    def _extract_docx_structure(text: str, paragraph) -> tuple:
+        """DOCX 문단에서 계층형 구조 추출"""
+        lvl1 = lvl2 = lvl3 = lvl4 = ""
+        
+        # 제목/조항 패턴 감지
+        import re
+        
+        # 제1조, 제2조 등의 패턴 (lvl1)
+        article_match = re.match(r'제(\d+)조\s*\(([^)]+)\)', text)
+        if article_match:
+            lvl1 = text
+            return lvl1, lvl2, lvl3, lvl4
+        
+        # ①, ②, ③ 등의 패턴 (lvl2)
+        if re.match(r'[①②③④⑤⑥⑦⑧⑨⑩]', text):
+            lvl2 = text
+            return lvl1, lvl2, lvl3, lvl4
+        
+        # 1), 2), 3) 등의 패턴 (lvl3)
+        if re.match(r'\d+\)', text):
+            lvl3 = text
+            return lvl1, lvl2, lvl3, lvl4
+        
+        # 가), 나), 다) 등의 패턴 (lvl3)
+        if re.match(r'[가-힣]\)', text):
+            lvl3 = text
+            return lvl1, lvl2, lvl3, lvl4
+        
+        # 일반 문단은 lvl4로 처리
+        lvl4 = text
+        return lvl1, lvl2, lvl3, lvl4
     
     @staticmethod
     async def _extract_from_xlsx(file_content: bytes) -> List[Dict[str, Any]]:

@@ -138,14 +138,14 @@ async def _process_file(file_content: bytes, file_name: str) -> Dict[str, Any]:
         logger.info(f"데이터 추출 시작: {file_name}")
         extracted_data = await FileParser.extract_text(file_content, file_name)
         
-        if file_ext in ['.xlsx', '.pdf'] and isinstance(extracted_data, list):
-            # XLSX, PDF: 구조화된 데이터 처리
+        if file_ext in ['.xlsx', '.pdf', '.docx'] and isinstance(extracted_data, list):
+            # XLSX, PDF, DOCX: 구조화된 데이터 처리
             if not extracted_data:
                 raise ValueError(f"{file_ext.upper()} 파일에서 구조화된 데이터를 추출할 수 없습니다")
             
             logger.info(f"{file_ext.upper()} 구조화 데이터 추출 완료: {len(extracted_data)} 개 항목")
             
-            # PDF 표 구조 정보 로깅
+            # 파일별 구조 분석 로깅
             if file_ext == '.pdf':
                 logger.info("PDF 표 구조 분석:")
                 lvl1_count = sum(1 for item in extracted_data if item.get('lvl1'))
@@ -156,6 +156,16 @@ async def _process_file(file_content: bytes, file_name: str) -> Dict[str, Any]:
                 logger.info(f"  - lvl2 항목: {lvl2_count}개")
                 logger.info(f"  - lvl3 항목: {lvl3_count}개")
                 logger.info(f"  - lvl4 항목: {lvl4_count}개")
+            elif file_ext == '.docx':
+                logger.info("DOCX 문서 구조 분석:")
+                lvl1_count = sum(1 for item in extracted_data if item.get('lvl1'))
+                lvl2_count = sum(1 for item in extracted_data if item.get('lvl2'))
+                lvl3_count = sum(1 for item in extracted_data if item.get('lvl3'))
+                lvl4_count = sum(1 for item in extracted_data if item.get('lvl4'))
+                logger.info(f"  - lvl1 항목 (조항): {lvl1_count}개")
+                logger.info(f"  - lvl2 항목 (소항목): {lvl2_count}개")
+                logger.info(f"  - lvl3 항목 (세부항목): {lvl3_count}개")
+                logger.info(f"  - lvl4 항목 (내용): {lvl4_count}개")
             
             # RAG 챗봇에 최적화된 텍스트 생성
             chunks = []
