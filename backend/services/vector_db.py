@@ -11,9 +11,16 @@ Qdrant 벡터 데이터베이스 연동 서비스 (상세 로그 버전)
 - Qdrant: 벡터 데이터베이스
 - 임베딩 차원: 768 (KoSBERT)
 - 거리 측정: 코사인 유사도
+
+환경 변수:
+- QDRANT_HOST: Qdrant 서버 호스트
+- QDRANT_PORT: Qdrant 서버 포트
+- QDRANT_COLLECTION: 컬렉션명
+- QDRANT_TIMEOUT: 연결 타임아웃
 """
 
 import logging
+import os
 import time
 import uuid
 from datetime import datetime
@@ -43,39 +50,60 @@ class VectorDatabase:
     """
     
     def __init__(self, 
-                 host: str = "localhost", 
-                 port: int = 6333, 
-                 collection_name: str = "documents",
-                 use_local_storage: bool = False,
-                 storage_path: str = "./qdrant_storage"):
+                 host: Optional[str] = None, 
+                 port: Optional[int] = None, 
+                 collection_name: Optional[str] = None,
+                 use_local_storage: Optional[bool] = None,
+                 storage_path: Optional[str] = None,
+                 timeout: Optional[int] = None):
         """
         Qdrant 클라이언트 초기화
         
+        환경 변수에서 설정을 우선 로드하고, 없으면 기본값 또는 매개변수 사용
+        
         Args:
-            host: Qdrant 서버 호스트 (서버 모드)
-            port: Qdrant 서버 포트 (기본: 6333)
-            collection_name: 벡터 컬렉션명 (기본: documents)
-            use_local_storage: 로컬 파일 모드 사용 여부
-            storage_path: 로컬 저장 경로 (로컬 모드 시)
+            host: Qdrant 서버 호스트 (기본: 환경변수 또는 "localhost")
+            port: Qdrant 서버 포트 (기본: 환경변수 또는 6333)
+            collection_name: 벡터 컬렉션명 (기본: 환경변수 또는 "documents")
+            use_local_storage: 로컬 파일 모드 사용 여부 (기본: false)
+            storage_path: 로컬 저장 경로 (기본: 환경변수 또는 "./qdrant_storage")
+            timeout: 연결 타임아웃 (기본: 환경변수 또는 30)
+            
+        환경 변수:
+            QDRANT_HOST: 서버 호스트
+            QDRANT_PORT: 서버 포트
+            QDRANT_COLLECTION: 컬렉션명
+            QDRANT_USE_LOCAL_STORAGE: 로컬 모드 사용 여부 (true/false)
+            QDRANT_STORAGE_PATH: 로컬 저장 경로
+            QDRANT_TIMEOUT: 타임아웃 (초)
         """
         logger.info("=" * 70)
         logger.info("VectorDatabase 초기화 시작")
         logger.info("=" * 70)
         
-        self.host = host
-        self.port = port
-        self.collection_name = collection_name
-        self.use_local_storage = use_local_storage
-        self.storage_path = Path(storage_path) if use_local_storage else None
+        # 환경 변수에서 설정 로드 (우선순위: 매개변수 > 환경변수 > 기본값)
+        self.host = host or os.getenv("QDRANT_HOST", "localhost")
+        self.port = port or int(os.getenv("QDRANT_PORT", "6333"))
+        self.collection_name = collection_name or os.getenv("QDRANT_COLLECTION", "documents")
+        self.use_local_storage = (
+            use_local_storage 
+            if use_local_storage is not None 
+            else os.getenv("QDRANT_USE_LOCAL_STORAGE", "false").lower() == "true"
+        )
+        storage_path_env = storage_path or os.getenv("QDRANT_STORAGE_PATH", "./qdrant_storage")
+        self.storage_path = Path(storage_path_env) if self.use_local_storage else None
+        self.timeout = timeout or int(os.getenv("QDRANT_TIMEOUT", "30"))
+        
         self.client = None
         self.embedding_dim = None  # 임베딩 모델에서 동적으로 가져옴
         self.max_retries = 3  # 재시도 횟수
         
-        logger.info(f"설정:")
-        logger.info(f"  - 모드: {'로컬 파일' if use_local_storage else '서버'}")
-        logger.info(f"  - 호스트: {host}:{port if not use_local_storage else 'N/A'}")
-        logger.info(f"  - 컬렉션: {collection_name}")
-        logger.info(f"  - 저장 경로: {storage_path if use_local_storage else 'N/A'}")
+        logger.info(f"설정 로드 완료:")
+        logger.info(f"  - 모드: {'로컬 파일' if self.use_local_storage else '서버'}")
+        logger.info(f"  - 호스트: {self.host}:{self.port if not self.use_local_storage else 'N/A'}")
+        logger.info(f"  - 컬렉션: {self.collection_name}")
+        logger.info(f"  - 저장 경로: {storage_path_env if self.use_local_storage else 'N/A'}")
+        logger.info(f"  - 타임아웃: {self.timeout}초")
         
         self._init_client()
     
@@ -108,7 +136,7 @@ class VectorDatabase:
                 self.client = QdrantClient(
                     host=self.host,
                     port=self.port,
-                    timeout=30  # 30초 타임아웃
+                    timeout=self.timeout  # 환경변수에서 로드된 타임아웃
                 )
                 logger.info("✓ 서버 클라이언트 연결 완료")
             
@@ -769,18 +797,23 @@ def get_vector_db() -> VectorDatabase:
     """
     전역 벡터 DB 인스턴스 반환 (싱글톤 패턴)
     
+    환경 변수에서 설정을 자동으로 로드합니다.
+    매개변수 없이 호출하면 .env 파일의 설정 사용
+    
+    환경 변수:
+        QDRANT_HOST: 서버 호스트 (기본: localhost)
+        QDRANT_PORT: 서버 포트 (기본: 6333)
+        QDRANT_COLLECTION: 컬렉션명 (기본: documents)
+        QDRANT_USE_LOCAL_STORAGE: 로컬 모드 (기본: false)
+        QDRANT_TIMEOUT: 타임아웃 (기본: 30)
+    
     Returns:
         VectorDatabase 인스턴스
     """
     global _vectordb_instance
     if _vectordb_instance is None:
-        logger.info("새로운 VectorDatabase 인스턴스 생성")
-        # 서버 모드로 기본 설정
-        _vectordb_instance = VectorDatabase(
-            host="localhost",
-            port=6333,
-            collection_name="documents",
-            use_local_storage=False  # 서버 모드 활성화
-        )
+        logger.info("새로운 VectorDatabase 인스턴스 생성 (환경변수 기반)")
+        # 환경 변수에서 자동 로드 (매개변수 없이 호출)
+        _vectordb_instance = VectorDatabase()
     return _vectordb_instance
 
