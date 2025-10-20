@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Optional, Union, List, Dict, Any
 
 import PyPDF2
+import pdfplumber
 from docx import Document
 from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
@@ -39,30 +40,90 @@ class FileParser:
             ValueError: 지원하지 않는 파일 형식
             RuntimeError: 텍스트 추출 실패
         """
-        if len(file_content) > cls.MAX_FILE_SIZE:
-            raise ValueError(f"파일 크기가 {cls.MAX_FILE_SIZE / 1024 / 1024}MB를 초과합니다")
+        if len(file_content) > FileParser.MAX_FILE_SIZE:
+            raise ValueError(f"파일 크기가 {FileParser.MAX_FILE_SIZE / 1024 / 1024}MB를 초과합니다")
         
         file_ext = Path(filename).suffix.lower()
         
-        if file_ext not in cls.SUPPORTED_EXTENSIONS:
+        if file_ext not in FileParser.SUPPORTED_EXTENSIONS:
             raise ValueError(f"지원하지 않는 파일 형식: {file_ext}")
         
         try:
             if file_ext == '.pdf':
-                return await cls._extract_from_pdf(file_content)
+                return await FileParser._extract_from_pdf(file_content)
             elif file_ext == '.docx':
-                return await cls._extract_from_docx(file_content)
+                return await FileParser._extract_from_docx(file_content)
             elif file_ext == '.xlsx':
-                return await cls._extract_from_xlsx(file_content)
+                return await FileParser._extract_from_xlsx(file_content)
             elif file_ext == '.txt':
-                return await cls._extract_from_txt(file_content)
+                return await FileParser._extract_from_txt(file_content)
         except Exception as e:
             logger.error(f"텍스트 추출 실패 - 파일: {filename}, 오류: {str(e)}")
             raise RuntimeError(f"텍스트 추출 실패: {str(e)}")
     
     @staticmethod
-    async def _extract_from_pdf(file_content: bytes) -> str:
-        """PDF 파일에서 텍스트 추출"""
+    async def _extract_from_pdf(file_content: bytes) -> Union[str, List[Dict[str, Any]]]:
+        """PDF 파일에서 텍스트 및 표 추출"""
+        try:
+            pdf_file = io.BytesIO(file_content)
+            
+            # pdfplumber로 표 감지 및 추출 시도
+            try:
+                with pdfplumber.open(pdf_file) as pdf:
+                    structured_data = []
+                    has_tables = False
+                    
+                    for page_num, page in enumerate(pdf.pages):
+                        logger.info(f"PDF 페이지 {page_num + 1} 처리 중...")
+                        
+                        # 표 추출 시도
+                        tables = page.extract_tables()
+                        if tables:
+                            logger.info(f"페이지 {page_num + 1}에서 {len(tables)}개 표 발견")
+                            has_tables = True
+                            
+                            for table_idx, table in enumerate(tables):
+                                if table and len(table) > 1:  # 헤더 + 데이터 행이 있는 경우
+                                    logger.info(f"표 {table_idx + 1} 처리 중... (행 수: {len(table)})")
+                                    table_data = FileParser._process_pdf_table(table, page_num + 1, table_idx + 1)
+                                    logger.info(f"표 {table_idx + 1}에서 {len(table_data)}개 항목 추출")
+                                    structured_data.extend(table_data)
+                                else:
+                                    logger.warning(f"표 {table_idx + 1}이 비어있거나 데이터가 부족합니다")
+                        
+                        # 표가 없는 경우 일반 텍스트 추출
+                        if not tables:
+                            logger.info(f"페이지 {page_num + 1}에 표가 없음, 텍스트 추출 시도")
+                            page_text = page.extract_text()
+                            if page_text and page_text.strip():
+                                logger.info(f"페이지 {page_num + 1}에서 텍스트 추출 성공 ({len(page_text)}자)")
+                                # 텍스트를 구조화된 형태로 변환
+                                text_data = FileParser._process_pdf_text(page_text, page_num + 1)
+                                logger.info(f"텍스트에서 {len(text_data)}개 항목 추출")
+                                structured_data.extend(text_data)
+                            else:
+                                logger.warning(f"페이지 {page_num + 1}에서 텍스트를 추출할 수 없습니다")
+                    
+                    if has_tables and structured_data:
+                        logger.info(f"PDF 표 데이터 추출 완료: {len(structured_data)}개 항목")
+                        return structured_data
+                    elif structured_data:
+                        logger.info(f"PDF 텍스트 데이터 추출 완료: {len(structured_data)}개 항목")
+                        return structured_data
+                    else:
+                        # 기존 방식으로 폴백
+                        return await FileParser._extract_from_pdf_fallback(file_content)
+                        
+            except Exception as e:
+                logger.warning(f"pdfplumber 처리 실패, 기존 방식으로 폴백: {str(e)}")
+                return await FileParser._extract_from_pdf_fallback(file_content)
+                
+        except Exception as e:
+            raise RuntimeError(f"PDF 처리 오류: {str(e)}")
+    
+    @staticmethod
+    async def _extract_from_pdf_fallback(file_content: bytes) -> str:
+        """PDF 파일에서 텍스트 추출 (기존 방식)"""
         text_parts = []
         
         try:
@@ -85,6 +146,133 @@ class FileParser:
             
         except Exception as e:
             raise RuntimeError(f"PDF 처리 오류: {str(e)}")
+    
+    @staticmethod
+    def _process_pdf_table(table: List[List[str]], page_num: int, table_idx: int) -> List[Dict[str, Any]]:
+        """PDF 표를 구조화된 데이터로 변환"""
+        if not table or len(table) < 2:
+            logger.warning(f"표가 비어있거나 데이터가 부족합니다 (행 수: {len(table) if table else 0})")
+            return []
+        
+        logger.info(f"표 처리 시작 - 페이지: {page_num}, 표: {table_idx}, 행 수: {len(table)}")
+        
+        structured_data = []
+        headers = table[0] if table else []
+        
+        # 헤더 정리
+        clean_headers = []
+        for header in headers:
+            if header:
+                clean_headers.append(str(header).strip())
+            else:
+                clean_headers.append("")
+        
+        logger.info(f"표 헤더: {clean_headers}")
+        
+        # 데이터 행 처리
+        processed_rows = 0
+        for row_idx, row in enumerate(table[1:], 1):
+            if not row or all(not cell for cell in row):
+                logger.debug(f"행 {row_idx} 건너뛰기 (빈 행)")
+                continue
+            
+            # 행 데이터 정리
+            clean_row = []
+            for cell in row:
+                if cell:
+                    clean_row.append(str(cell).strip())
+                else:
+                    clean_row.append("")
+            
+            # 계층형 구조 추출 시도
+            lvl1, lvl2, lvl3, lvl4 = FileParser._extract_hierarchical_structure(clean_headers, clean_row)
+            
+            if lvl1 or lvl2 or lvl3 or lvl4:
+                logger.debug(f"행 {row_idx} 계층형 구조: lvl1={lvl1}, lvl2={lvl2}, lvl3={lvl3}, lvl4={lvl4}")
+            
+            # 각 셀별로 데이터 생성
+            row_cells = 0
+            for col_idx, (header, value) in enumerate(zip(clean_headers, clean_row)):
+                if value:  # 값이 있는 셀만 처리
+                    cell_data = {
+                        "page": page_num,
+                        "table": table_idx,
+                        "row": row_idx,
+                        "col": col_idx + 1,
+                        "header": header,
+                        "value": value,
+                        "lvl1": lvl1,
+                        "lvl2": lvl2,
+                        "lvl3": lvl3,
+                        "lvl4": lvl4,
+                        "row_context": " | ".join([v for v in clean_row if v])
+                    }
+                    structured_data.append(cell_data)
+                    row_cells += 1
+            
+            if row_cells > 0:
+                processed_rows += 1
+                logger.debug(f"행 {row_idx} 처리 완료: {row_cells}개 셀")
+        
+        logger.info(f"표 처리 완료: {processed_rows}개 행, {len(structured_data)}개 셀")
+        return structured_data
+    
+    @staticmethod
+    def _process_pdf_text(text: str, page_num: int) -> List[Dict[str, Any]]:
+        """PDF 텍스트를 구조화된 데이터로 변환"""
+        if not text or not text.strip():
+            return []
+        
+        lines = text.strip().split('\n')
+        structured_data = []
+        
+        for line_idx, line in enumerate(lines, 1):
+            if line.strip():
+                # 간단한 구조화 (실제로는 더 정교한 파싱이 필요할 수 있음)
+                structured_data.append({
+                    "page": page_num,
+                    "table": 0,
+                    "row": line_idx,
+                    "col": 1,
+                    "header": "텍스트",
+                    "value": line.strip(),
+                    "lvl1": "",
+                    "lvl2": "",
+                    "lvl3": "",
+                    "lvl4": line.strip(),
+                    "row_context": line.strip()
+                })
+        
+        return structured_data
+    
+    @staticmethod
+    def _extract_hierarchical_structure(headers: List[str], row: List[str]) -> tuple:
+        """표 행에서 계층형 구조 추출"""
+        lvl1 = lvl2 = lvl3 = lvl4 = ""
+        
+        # 일반적인 계층형 구조 패턴 감지
+        if len(headers) >= 4 and len(row) >= 4:
+            # 첫 번째 컬럼이 구분/카테고리인 경우
+            if headers[0] and any(keyword in headers[0].lower() for keyword in ['구분', '분류', '카테고리', '구분1']):
+                lvl1 = row[0] if row[0] else ""
+            if len(headers) > 1 and headers[1] and any(keyword in headers[1].lower() for keyword in ['구분2', '세부', '하위']):
+                lvl2 = row[1] if row[1] else ""
+            if len(headers) > 2 and headers[2] and any(keyword in headers[2].lower() for keyword in ['구분3', '세부', '항목']):
+                lvl3 = row[2] if row[2] else ""
+            if len(headers) > 3 and headers[3] and any(keyword in headers[3].lower() for keyword in ['내용', '세부내용', '설명']):
+                lvl4 = row[3] if row[3] else ""
+        
+        # 자동 감지가 실패한 경우 첫 4개 컬럼을 lvl1~lvl4로 매핑
+        if not lvl1 and len(row) >= 1:
+            lvl1 = row[0] if row[0] else ""
+        if not lvl2 and len(row) >= 2:
+            lvl2 = row[1] if row[1] else ""
+        if not lvl3 and len(row) >= 3:
+            lvl3 = row[2] if row[2] else ""
+        if not lvl4 and len(row) >= 4:
+            lvl4 = row[3] if row[3] else ""
+        
+        return lvl1, lvl2, lvl3, lvl4
     
     @staticmethod
     async def _extract_from_docx(file_content: bytes) -> str:
