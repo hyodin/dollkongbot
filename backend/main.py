@@ -15,6 +15,7 @@ FastAPI 메인 애플리케이션
 """
 
 import logging
+import os  # 환경 변수 사용을 위해 최상단으로 이동
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -37,7 +38,56 @@ logging.basicConfig(
     force=True  # 기존 설정 강제 덮어쓰기
 )
 
+# ============================================================
+# 외부 라이브러리 로그 필터링 (환경변수 기반)
+# ============================================================
+# 환경 변수로 제어 가능한 로그 필터링
+# 각 라이브러리의 INFO 로그를 숨기고 WARNING 이상만 출력
+
+def _should_filter_log(env_var_name: str, default: str = "true") -> bool:
+    """
+    환경 변수 값으로 로그 필터링 여부 결정
+    
+    Args:
+        env_var_name: 환경 변수 이름
+        default: 기본값 ("true" 또는 "false")
+    
+    Returns:
+        True: 필터링 활성화 (WARNING 이상만 출력)
+        False: 필터링 비활성화 (모든 로그 출력)
+    """
+    return os.getenv(env_var_name, default).lower() == "true"
+
+# 1. watchfiles 로그 필터링
+# 파일 변경 감지 로그 ("1 change detected" 등)
+if _should_filter_log("FILTER_WATCHFILES", "true"):
+    logging.getLogger("watchfiles").setLevel(logging.WARNING)
+    logging.getLogger("watchfiles.main").setLevel(logging.WARNING)
+
+# 2. uvicorn 접속 로그 필터링
+# HTTP 요청/응답 로그 ("GET /api/chat 200 OK" 등)
+if _should_filter_log("FILTER_UVICORN_ACCESS", "false"):
+    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+
+# 3. HTTP 클라이언트 로그 필터링
+# httpx, httpcore의 상세 요청 로그
+if _should_filter_log("FILTER_HTTP_CLIENTS", "true"):
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
+
+# 4. transformers 로그 필터링
+# Hugging Face 모델 로딩 경고 메시지
+if _should_filter_log("FILTER_TRANSFORMERS", "true"):
+    logging.getLogger("transformers").setLevel(logging.WARNING)
+
 logger = logging.getLogger(__name__)
+
+# 필터링 설정 로깅
+logger.debug("로그 필터 설정:")
+logger.debug(f"  - watchfiles: {'필터링' if _should_filter_log('FILTER_WATCHFILES', 'true') else '표시'}")
+logger.debug(f"  - uvicorn.access: {'필터링' if _should_filter_log('FILTER_UVICORN_ACCESS', 'false') else '표시'}")
+logger.debug(f"  - HTTP clients: {'필터링' if _should_filter_log('FILTER_HTTP_CLIENTS', 'true') else '표시'}")
+logger.debug(f"  - transformers: {'필터링' if _should_filter_log('FILTER_TRANSFORMERS', 'true') else '표시'}")
 
 # ============================================================
 # 초기화 시작
@@ -276,12 +326,29 @@ async def health_check():
 
 if __name__ == "__main__":
     import uvicorn
+    import os
+    
+    # 환경 변수에서 서버 설정 로드
+    host = os.getenv("APP_HOST", "0.0.0.0")
+    port = int(os.getenv("APP_PORT", "8000"))
+    log_level = os.getenv("LOG_LEVEL", "info").lower()
+    debug = os.getenv("DEBUG", "false").lower() == "true"
+    
+    logger.info("=" * 80)
+    logger.info("uvicorn 서버 시작")
+    logger.info("=" * 80)
+    logger.info(f"호스트: {host}")
+    logger.info(f"포트: {port}")
+    logger.info(f"로그 레벨: {log_level}")
+    logger.info(f"디버그 모드: {debug}")
+    logger.info(f"자동 재시작: {debug}")  # 디버그 모드에서만 reload
+    logger.info("=" * 80)
     
     # 개발 서버 실행
     uvicorn.run(
         "main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True,  # 개발 모드에서 자동 재시작
-        log_level="info"
+        host=host,
+        port=port,
+        reload=debug,  # 디버그 모드에서만 자동 재시작
+        log_level=log_level
     )

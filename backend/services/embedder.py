@@ -12,11 +12,16 @@ KoSBERT를 이용한 한국어 텍스트 임베딩 서비스
 - 임베딩 차원: 768
 - 기반: SBERT (Sentence-BERT)
 - 특화: 한국어 자연어 추론 (NLI)
+
+환경 변수:
+- EMBEDDING_MODEL: 임베딩 모델명 (기본: jhgan/ko-sbert-nli)
+- EMBEDDING_BATCH_SIZE: 배치 크기 (기본: 32)
 """
 
 import logging
+import os
 import numpy as np
-from typing import List, Union
+from typing import List, Union, Optional
 import torch
 from sentence_transformers import SentenceTransformer
 
@@ -31,24 +36,30 @@ class KoreanEmbedder:
     벡터화된 텍스트는 Qdrant 벡터 DB에 저장되어 유사도 검색에 사용됩니다.
     """
     
-    def __init__(self, model_name: str = "jhgan/ko-sbert-nli"):
+    def __init__(self, model_name: Optional[str] = None):
         """
         KoSBERT 모델 초기화
         
+        환경 변수에서 설정을 우선 로드하고, 없으면 기본값 사용
+        
         Args:
-            model_name: 사용할 모델명 (기본: jhgan/ko-sbert-nli)
+            model_name: 사용할 모델명 (기본: 환경변수 또는 "jhgan/ko-sbert-nli")
                        - jhgan/ko-sbert-nli: 한국어 자연어 추론 특화
                        - 768차원 임베딩 생성
+                       
+        환경 변수:
+            EMBEDDING_MODEL: 모델명 (선택)
         """
         logger.info("=" * 60)
         logger.info("KoreanEmbedder 초기화 시작")
         logger.info("=" * 60)
         
-        self.model_name = model_name
+        # 환경 변수에서 모델명 로드
+        self.model_name = model_name or os.getenv("EMBEDDING_MODEL", "jhgan/ko-sbert-nli")
         self.model = None
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         
-        logger.info(f"모델명: {model_name}")
+        logger.info(f"모델명: {self.model_name}")
         logger.info(f"디바이스: {self.device} {'(GPU 가속 활성화)' if self.device == 'cuda' else '(CPU 모드)'}")
         
         self._load_model()
@@ -148,7 +159,7 @@ class KoreanEmbedder:
             # 실패 시 0 벡터 반환
             return np.zeros(self.embedding_dim, dtype=np.float32)
     
-    def encode_batch(self, texts: List[str], batch_size: int = 32) -> List[np.ndarray]:
+    def encode_batch(self, texts: List[str], batch_size: Optional[int] = None) -> List[np.ndarray]:
         """
         여러 텍스트를 한 번에 배치 임베딩 (성능 최적화)
         
@@ -175,6 +186,10 @@ class KoreanEmbedder:
         if not texts:
             logger.warning("빈 텍스트 리스트 - 빈 결과 반환")
             return []
+        
+        # 환경 변수에서 배치 크기 로드
+        if batch_size is None:
+            batch_size = int(os.getenv("EMBEDDING_BATCH_SIZE", "32"))
         
         logger.info("=" * 60)
         logger.info("배치 임베딩 프로세스 시작")

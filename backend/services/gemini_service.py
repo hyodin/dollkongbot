@@ -1,5 +1,10 @@
 """
 Google Gemini Pro LLM 서비스
+
+환경 변수:
+- GOOGLE_API_KEY: Gemini API 키 (필수)
+- GEMINI_MODEL: 사용할 모델 (기본: gemini-2.0-flash)
+- GEMINI_TIMEOUT: API 타임아웃 (기본: 60초)
 """
 
 import logging
@@ -22,22 +27,33 @@ class GeminiLLMService:
     
     def __init__(self, 
                  api_key: Optional[str] = None,
-                 model: str = "gemini-2.0-flash",
-                 timeout: int = 60):
+                 model: Optional[str] = None,
+                 timeout: Optional[int] = None):
         """
         Gemini LLM 서비스 초기화
         
+        환경 변수에서 설정을 우선 로드하고, 없으면 기본값 사용
+        
         Args:
-            api_key: Google API 키
-            model: 사용할 모델명 (gemini-2.0-flash)
-            timeout: 응답 타임아웃 (초)
+            api_key: Google API 키 (기본: 환경변수 GOOGLE_API_KEY)
+            model: 사용할 모델명 (기본: 환경변수 또는 "gemini-2.0-flash")
+            timeout: 응답 타임아웃 (기본: 환경변수 또는 60초)
+            
+        환경 변수:
+            GOOGLE_API_KEY: Gemini API 키 (필수)
+            GEMINI_MODEL: 모델명 (선택)
+            GEMINI_TIMEOUT: 타임아웃 초 (선택)
         """
+        # 환경 변수에서 설정 로드 (우선순위: 매개변수 > 환경변수 > 기본값)
         self.api_key = api_key or os.getenv("GOOGLE_API_KEY")
-        self.model_name = model
-        self.timeout = timeout
+        self.model_name = model or os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+        self.timeout = timeout or int(os.getenv("GEMINI_TIMEOUT", "60"))
         
         if not self.api_key:
-            raise ValueError("Google API 키가 설정되지 않았습니다. GOOGLE_API_KEY 환경변수를 설정하거나 api_key 매개변수를 제공하세요.")
+            raise ValueError(
+                "Google API 키가 설정되지 않았습니다.\n"
+                ".env 파일에 GOOGLE_API_KEY를 설정하거나 api_key 매개변수를 제공하세요."
+            )
         
         # Gemini 설정 - 매번 새로 구성하지 않고 한 번만 설정
         self._configure_gemini()
@@ -47,7 +63,9 @@ class GeminiLLMService:
         self._health_status = False
         self._health_cache_duration = 60  # 60초 캐시
         
-        logger.info(f"GeminiLLMService 초기화 완료 - 모델: {model}")
+        logger.info(f"GeminiLLMService 초기화 완료")
+        logger.info(f"  - 모델: {self.model_name}")
+        logger.info(f"  - 타임아웃: {self.timeout}초")
 
     def _configure_gemini(self):
         """Gemini API 설정"""
