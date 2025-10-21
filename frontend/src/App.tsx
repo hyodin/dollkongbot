@@ -11,9 +11,19 @@ import FileUpload from './components/FileUpload';
 import SearchBar from './components/SearchBar';
 import ResultList from './components/ResultList';
 import ChatInterface from './components/ChatInterface';
+import NaverWorksLogin from './components/NaverWorksLogin';
 import apiClient, { SearchResponse, SearchResult, UploadResponse, DocumentInfo } from './api/client';
 
-function App() {
+// 네이버웍스 사용자 타입
+interface NaverWorksUser {
+  id: string;
+  name: string;
+  email: string;
+  profile_image?: string;
+}
+
+// 메인 애플리케이션 컴포넌트
+function MainApp() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [currentQuery, setCurrentQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
@@ -22,12 +32,91 @@ function App() {
   const [processingTime, setProcessingTime] = useState<number>(0);
   const [stats, setStats] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'search' | 'chat'>('search');
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [user, setUser] = useState<NaverWorksUser | null>(null);
 
-  // 컴포넌트 마운트 시 문서 목록 로드
+  // 컴포넌트 마운트 시 문서 목록 로드 및 OAuth 콜백 처리
   useEffect(() => {
+    // OAuth 콜백 처리
+    const handleOAuthCallback = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const code = urlParams.get('code');
+      const state = urlParams.get('state');
+      const error = urlParams.get('error');
+
+      if (code && state === 'naverworks_auth') {
+        try {
+          const response = await fetch('/api/auth/naverworks/callback', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+              code, 
+              redirect_uri: 'http://localhost:3000/' 
+            }),
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            if (data.success) {
+              localStorage.setItem('naverworks_token', data.access_token);
+              localStorage.setItem('naverworks_user', JSON.stringify(data.user));
+              setUser(data.user);
+              setIsLoggedIn(true);
+              toast.success('네이버웍스 로그인 성공!');
+              
+              // URL에서 파라미터 제거
+              window.history.replaceState({}, document.title, window.location.pathname);
+            }
+          }
+        } catch (error) {
+          console.error('OAuth 콜백 처리 오류:', error);
+          toast.error('로그인 처리 중 오류가 발생했습니다');
+        }
+      } else if (error) {
+        toast.error(`로그인 오류: ${error}`);
+      }
+    };
+
+    // 기존 로그인 상태 확인
+    const checkAuthStatus = () => {
+      const token = localStorage.getItem('naverworks_token');
+      const userData = localStorage.getItem('naverworks_user');
+      
+      if (token && userData) {
+        try {
+          const user = JSON.parse(userData);
+          setUser(user);
+          setIsLoggedIn(true);
+        } catch (error) {
+          console.error('사용자 정보 파싱 오류:', error);
+          localStorage.removeItem('naverworks_user');
+          localStorage.removeItem('naverworks_token');
+        }
+      }
+    };
+
+    handleOAuthCallback();
+    checkAuthStatus();
     loadDocuments();
     loadStats();
   }, []);
+
+  // 로그인 성공 처리
+  const handleLoginSuccess = (user: NaverWorksUser) => {
+    setUser(user);
+    setIsLoggedIn(true);
+  };
+
+  // 로그아웃 처리
+  const handleLogout = () => {
+    setUser(null);
+    setIsLoggedIn(false);
+    localStorage.removeItem('naverworks_user');
+    localStorage.removeItem('naverworks_token');
+    toast.success('로그아웃되었습니다');
+  };
 
   // 문서 목록 로드
   const loadDocuments = async () => {
@@ -105,6 +194,63 @@ function App() {
     }
   };
 
+  // 로그인되지 않은 경우 로그인 화면 표시
+  if (!isLoggedIn) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="max-w-md w-full space-y-8">
+          <div className="text-center">
+            <div className="w-16 h-16 mx-auto mb-4 bg-blue-100 rounded-full flex items-center justify-center">
+              <svg className="w-8 h-8 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+              </svg>
+            </div>
+            <h2 className="text-3xl font-bold text-gray-900 mb-2">
+              한국어 문서 벡터 검색 시스템
+            </h2>
+            <p className="text-gray-600 mb-8">
+              KoSBERT + Qdrant + Gemini RAG 시스템
+            </p>
+          </div>
+
+          <div className="bg-white py-8 px-6 shadow-lg rounded-lg">
+            <div className="text-center mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                로그인이 필요합니다
+              </h3>
+              <p className="text-gray-600">
+                네이버웍스 계정으로 로그인하여 서비스를 이용하세요
+              </p>
+            </div>
+
+            <div className="flex justify-center">
+              <NaverWorksLogin
+                onLoginSuccess={handleLoginSuccess}
+                onLogout={handleLogout}
+                isLoggedIn={isLoggedIn}
+                user={user}
+              />
+            </div>
+
+            <div className="mt-6 text-center">
+              <p className="text-sm text-gray-500">
+                로그인 후 문서 업로드, 검색, RAG 채팅 기능을 이용할 수 있습니다
+              </p>
+            </div>
+          </div>
+
+          <div className="text-center">
+            <div className="flex items-center justify-center space-x-6 text-sm text-gray-500">
+              <span>KoSBERT + Qdrant + Gemini</span>
+              <span>•</span>
+              <span>FastAPI + React</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* 헤더 */}
@@ -127,29 +273,40 @@ function App() {
               </div>
             </div>
 
-            {/* 통계 정보 */}
-            {stats && (
-              <div className="hidden md:flex items-center space-x-6 text-sm text-gray-600">
-                <div className="text-center">
-                  <div className="font-medium text-gray-900">
-                    {stats.database_stats?.total_chunks || 0}
+            {/* 통계 정보 및 로그인 */}
+            <div className="flex items-center space-x-6">
+              {/* 통계 정보 */}
+              {stats && (
+                <div className="hidden md:flex items-center space-x-6 text-sm text-gray-600">
+                  <div className="text-center">
+                    <div className="font-medium text-gray-900">
+                      {stats.database_stats?.total_chunks || 0}
+                    </div>
+                    <div>총 청크</div>
                   </div>
-                  <div>총 청크</div>
-                </div>
-                <div className="text-center">
-                  <div className="font-medium text-gray-900">
-                    {documents.length}
+                  <div className="text-center">
+                    <div className="font-medium text-gray-900">
+                      {documents.length}
+                    </div>
+                    <div>문서 수</div>
                   </div>
-                  <div>문서 수</div>
-                </div>
-                <div className="text-center">
-                  <div className="font-medium text-gray-900">
-                    {stats.model_info?.embedding_dim || 0}
+                  <div className="text-center">
+                    <div className="font-medium text-gray-900">
+                      {stats.model_info?.embedding_dim || 0}
+                    </div>
+                    <div>임베딩 차원</div>
                   </div>
-                  <div>임베딩 차원</div>
                 </div>
-              </div>
-            )}
+              )}
+              
+              {/* 네이버웍스 로그인 */}
+              <NaverWorksLogin
+                onLoginSuccess={handleLoginSuccess}
+                onLogout={handleLogout}
+                isLoggedIn={isLoggedIn}
+                user={user}
+              />
+            </div>
           </div>
         </div>
       </header>
@@ -326,6 +483,11 @@ function App() {
       />
     </div>
   );
+}
+
+// 메인 App 컴포넌트
+function App() {
+  return <MainApp />;
 }
 
 export default App;

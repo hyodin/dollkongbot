@@ -1,0 +1,119 @@
+"""
+네이버웍스 OAuth 인증 라우터
+"""
+
+import logging
+import requests
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+from typing import Dict, Any
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/api/auth", tags=["auth"])
+
+# 네이버웍스 OAuth 설정
+NAVERWORKS_CLIENT_ID = "KG7nswiEUqq3499jB5Ih"
+NAVERWORKS_CLIENT_SECRET = "t8_Nud9m8z"
+NAVERWORKS_TOKEN_URL = "https://auth.worksmobile.com/oauth2/v2.0/token"
+NAVERWORKS_USER_INFO_URL = "https://www.worksapis.com/v1.0/users/me"
+
+# 네이버웍스 OAuth 설정 완료
+
+class OAuthCallbackRequest(BaseModel):
+    code: str
+    redirect_uri: str
+
+class OAuthResponse(BaseModel):
+    success: bool
+    access_token: str
+    user: Dict[str, Any]
+    message: str = ""
+
+@router.post("/naverworks/callback")
+async def naverworks_callback(request: OAuthCallbackRequest):
+    """
+    네이버웍스 OAuth 콜백 처리
+    """
+    try:
+        logger.info(f"네이버웍스 OAuth 콜백 처리 시작: {request.code[:10]}...")
+        
+        # 실제 네이버웍스 OAuth 처리
+        # 1. 인증 코드로 액세스 토큰 교환
+        token_data = {
+            "grant_type": "authorization_code",
+            "client_id": NAVERWORKS_CLIENT_ID,
+            "client_secret": NAVERWORKS_CLIENT_SECRET,
+            "code": request.code,
+            "redirect_uri": request.redirect_uri
+        }
+        
+        token_response = requests.post(NAVERWORKS_TOKEN_URL, data=token_data)
+        
+        if token_response.status_code != 200:
+            logger.error(f"토큰 교환 실패: {token_response.status_code} - {token_response.text}")
+            raise HTTPException(status_code=400, detail="토큰 교환 실패")
+        
+        token_info = token_response.json()
+        
+        access_token = token_info.get("access_token")
+        
+        if not access_token:
+            logger.error("액세스 토큰을 받지 못했습니다")
+            raise HTTPException(status_code=400, detail="액세스 토큰을 받지 못했습니다")
+        
+        logger.info("액세스 토큰 획득 성공")
+        
+        # 2. 사용자 정보 조회
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json"
+        }
+        
+        user_response = requests.get(NAVERWORKS_USER_INFO_URL, headers=headers)
+        
+        if user_response.status_code != 200:
+            logger.error(f"사용자 정보 조회 실패: {user_response.status_code} - {user_response.text}")
+            raise HTTPException(status_code=400, detail="사용자 정보 조회 실패")
+        
+        user_info = user_response.json()
+        
+        # 3. 사용자 정보 정리
+        user_data = {
+            "id": user_info.get("userId", ""),
+            "name": user_info.get("userName", ""),
+            "email": user_info.get("email", ""),
+            "profile_image": user_info.get("profileImage", "")
+        }
+        
+        logger.info(f"사용자 정보 조회 성공: {user_data['name']} ({user_data['email']})")
+        
+        return OAuthResponse(
+            success=True,
+            access_token=access_token,
+            user=user_data,
+            message="로그인 성공"
+        )
+        
+    except requests.RequestException as e:
+        logger.error(f"네이버웍스 API 요청 오류: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"네이버웍스 API 요청 오류: {str(e)}")
+    
+    except Exception as e:
+        logger.error(f"네이버웍스 OAuth 처리 오류: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"OAuth 처리 오류: {str(e)}")
+
+@router.get("/naverworks/user")
+async def get_user_info():
+    """
+    현재 로그인된 사용자 정보 조회
+    """
+    # 실제 구현에서는 JWT 토큰 검증 등을 수행
+    return {"message": "사용자 정보 조회 API"}
+
+@router.post("/naverworks/logout")
+async def logout():
+    """
+    로그아웃 처리
+    """
+    return {"message": "로그아웃 성공"}
