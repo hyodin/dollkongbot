@@ -250,27 +250,48 @@ class FileParser:
         """표 행에서 계층형 구조 추출"""
         lvl1 = lvl2 = lvl3 = lvl4 = ""
         
+        # 괄호 안 내용 추출 함수
+        def _extract_bracket_content(text: str) -> str:
+            """조항에서 괄호 안의 내용만 추출"""
+            if not text:
+                return ""
+            
+            import re
+            # "제N조(내용)" 패턴에서 괄호 안의 내용만 추출
+            article_match = re.match(r'제\d+조\s*\(([^)]+)\)', text)
+            if article_match:
+                content = article_match.group(1).strip()
+                if content:  # 괄호 안에 실제 내용이 있는 경우만
+                    logger.debug(f"표에서 조항 내용 추출: '{text}' → '{content}'")
+                    return content
+                else:
+                    logger.debug(f"표에서 빈 괄호 조항 제외: {text}")
+                    return ""
+            
+            # 일반 텍스트는 그대로 반환
+            return text
+        
         # 일반적인 계층형 구조 패턴 감지
         if len(headers) >= 4 and len(row) >= 4:
             # 첫 번째 컬럼이 구분/카테고리인 경우
             if headers[0] and any(keyword in headers[0].lower() for keyword in ['구분', '분류', '카테고리', '구분1']):
-                lvl1 = row[0] if row[0] else ""
+                lvl1 = _extract_bracket_content(row[0]) if row[0] else ""
             if len(headers) > 1 and headers[1] and any(keyword in headers[1].lower() for keyword in ['구분2', '세부', '하위']):
-                lvl2 = row[1] if row[1] else ""
+                lvl2 = _extract_bracket_content(row[1]) if row[1] else ""
             if len(headers) > 2 and headers[2] and any(keyword in headers[2].lower() for keyword in ['구분3', '세부', '항목']):
-                lvl3 = row[2] if row[2] else ""
+                lvl3 = _extract_bracket_content(row[2]) if row[2] else ""
             if len(headers) > 3 and headers[3] and any(keyword in headers[3].lower() for keyword in ['내용', '세부내용', '설명']):
-                lvl4 = row[3] if row[3] else ""
+                lvl4 = _extract_bracket_content(row[3]) if row[3] else ""
         
         # 자동 감지가 실패한 경우 첫 4개 컬럼을 lvl1~lvl4로 매핑
         if not lvl1 and len(row) >= 1:
-            lvl1 = row[0] if row[0] else ""
+            lvl1 = _extract_bracket_content(row[0]) if row[0] else ""
         if not lvl2 and len(row) >= 2:
-            lvl2 = row[1] if row[1] else ""
+            lvl2 = _extract_bracket_content(row[1]) if row[1] else ""
         if not lvl3 and len(row) >= 3:
-            lvl3 = row[2] if row[2] else ""
+            lvl3 = _extract_bracket_content(row[2]) if row[2] else ""
         if not lvl4 and len(row) >= 4:
-            lvl4 = row[3] if row[3] else ""
+            lvl4 = _extract_bracket_content(row[3]) if row[3] else ""
         
         return lvl1, lvl2, lvl3, lvl4
     
@@ -356,6 +377,33 @@ class FileParser:
             
             # 제목/조항 패턴 감지
             lvl1, lvl2, lvl3, lvl4 = FileParser._extract_docx_structure(text, paragraph)
+            
+            # 추가 안전장치: 각 레벨에서 괄호 내용 추출
+            def _extract_bracket_content_safe(text: str) -> str:
+                """조항에서 괄호 안의 내용만 추출 (추가 안전장치)"""
+                if not text:
+                    return ""
+                
+                import re
+                # "제N조(내용)" 패턴에서 괄호 안의 내용만 추출
+                article_match = re.match(r'제\d+조\s*\(([^)]+)\)', text)
+                if article_match:
+                    content = article_match.group(1).strip()
+                    if content:  # 괄호 안에 실제 내용이 있는 경우만
+                        logger.debug(f"문단에서 조항 내용 추출: '{text}' → '{content}'")
+                        return content
+                    else:
+                        logger.debug(f"문단에서 빈 괄호 조항 제외: {text}")
+                        return ""
+                
+                # 일반 텍스트는 그대로 반환
+                return text
+            
+            # 각 레벨에 괄호 내용 추출 적용
+            lvl1 = _extract_bracket_content_safe(lvl1)
+            lvl2 = _extract_bracket_content_safe(lvl2)
+            lvl3 = _extract_bracket_content_safe(lvl3)
+            lvl4 = _extract_bracket_content_safe(lvl4)
             
             # 계층형 구조 업데이트 (forward fill)
             if lvl1:
@@ -471,10 +519,15 @@ class FileParser:
         # 제목/조항 패턴 감지
         import re
         
-        # 제1조, 제2조 등의 패턴 (lvl1)
+        # 제1조, 제2조 등의 패턴 (lvl1) - 괄호 안 내용만 추출
         article_match = re.match(r'제(\d+)조\s*\(([^)]+)\)', text)
         if article_match:
-            lvl1 = text
+            content = article_match.group(2).strip()
+            if content:  # 괄호 안에 실제 내용이 있는 경우만
+                lvl1 = content  # 괄호 안의 내용만 저장
+                logger.debug(f"조항 내용 추출: '{text}' → '{content}'")
+            else:
+                logger.debug(f"빈 괄호 조항 제외: {text}")
             return lvl1, lvl2, lvl3, lvl4
         
         # ①, ②, ③ 등의 패턴 (lvl2)
