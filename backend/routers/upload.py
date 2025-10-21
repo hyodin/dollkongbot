@@ -5,9 +5,9 @@
 
 import logging
 from io import BytesIO
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
-from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks
+from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks, Header, Depends
 from fastapi.responses import JSONResponse
 
 from utils.file_parser import FileParser
@@ -15,6 +15,7 @@ from services.safe_preprocessor import get_safe_preprocessor
 from services.chunker import get_chunker
 from services.embedder import get_embedder
 from services.vector_db import get_vector_db
+from routers.auth import verify_admin
 
 logger = logging.getLogger(__name__)
 
@@ -24,17 +25,22 @@ router = APIRouter()
 @router.post("/upload")
 async def upload_file(
     background_tasks: BackgroundTasks,
-    file: UploadFile = File(...)
+    file: UploadFile = File(...),
+    authorization: Optional[str] = Header(None)
 ) -> Dict[str, Any]:
     """
-    파일 업로드 및 벡터화 처리
+    파일 업로드 및 벡터화 처리 (관리자 전용)
     
     Args:
         file: 업로드할 파일 (PDF, DOCX, XLSX, TXT)
+        authorization: Bearer 토큰 (관리자 인증)
         
     Returns:
         업로드 결과 정보
     """
+    # 관리자 권한 확인
+    await verify_admin(authorization)
+    
     try:
         # 1. 파일 유효성 검사
         await _validate_file(file)
@@ -69,16 +75,23 @@ async def upload_file(
 
 
 @router.post("/upload-sync")
-async def upload_file_sync(file: UploadFile = File(...)) -> Dict[str, Any]:
+async def upload_file_sync(
+    file: UploadFile = File(...),
+    authorization: Optional[str] = Header(None)
+) -> Dict[str, Any]:
     """
-    파일 업로드 및 동기 처리 (테스트용)
+    파일 업로드 및 동기 처리 (테스트용, 관리자 전용)
     
     Args:
         file: 업로드할 파일
+        authorization: Bearer 토큰 (관리자 인증)
         
     Returns:
         처리 결과
     """
+    # 관리자 권한 확인
+    await verify_admin(authorization)
+    
     try:
         # 1. 파일 유효성 검사
         await _validate_file(file)
@@ -346,8 +359,20 @@ async def get_documents() -> Dict[str, Any]:
 
 
 @router.delete("/documents/{file_id}")
-async def delete_document(file_id: str) -> Dict[str, Any]:
-    """문서 삭제"""
+async def delete_document(
+    file_id: str,
+    authorization: Optional[str] = Header(None)
+) -> Dict[str, Any]:
+    """
+    문서 삭제 (관리자 전용)
+    
+    Args:
+        file_id: 삭제할 문서 ID
+        authorization: Bearer 토큰 (관리자 인증)
+    """
+    # 관리자 권한 확인
+    await verify_admin(authorization)
+    
     try:
         vector_db = get_vector_db()
         

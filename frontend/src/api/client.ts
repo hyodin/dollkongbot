@@ -126,10 +126,17 @@ class ApiClient {
       },
     });
 
-    // 요청 인터셉터
+    // 요청 인터셉터 - 토큰 자동 추가
     this.client.interceptors.request.use(
       (config) => {
         console.log(`API 요청: ${config.method?.toUpperCase()} ${config.url}`);
+        
+        // 로컬스토리지에서 토큰 가져오기
+        const token = localStorage.getItem('naverworks_token');
+        if (token && config.headers) {
+          config.headers.Authorization = `Bearer ${token}`;
+        }
+        
         return config;
       },
       (error) => {

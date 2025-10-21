@@ -4,9 +4,9 @@
 
 import logging
 import requests
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Header
 from pydantic import BaseModel
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -171,3 +171,73 @@ async def logout():
     로그아웃 처리
     """
     return {"message": "로그아웃 성공"}
+
+
+async def verify_admin(authorization: Optional[str] = Header(None)) -> bool:
+    """
+    관리자 권한 확인
+    
+    Args:
+        authorization: Bearer 토큰
+        
+    Returns:
+        관리자 여부
+        
+    Raises:
+        HTTPException: 인증 실패 시
+    """
+    if not authorization:
+        raise HTTPException(status_code=401, detail="인증 토큰이 필요합니다")
+    
+    # Bearer 토큰 추출
+    parts = authorization.split()
+    if len(parts) != 2 or parts[0].lower() != "bearer":
+        raise HTTPException(status_code=401, detail="잘못된 토큰 형식입니다")
+    
+    access_token = parts[1]
+    
+    try:
+        # 네이버웍스 사용자 정보 조회
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json"
+        }
+        
+        user_response = requests.get(NAVERWORKS_USER_INFO_URL, headers=headers)
+        
+        if user_response.status_code != 200:
+            raise HTTPException(status_code=401, detail="유효하지 않은 토큰입니다")
+        
+        user_info = user_response.json()
+        user_id = user_info.get("userId", "")
+        
+        # 사용자 상세 정보 조회
+        user_detail_url = f"https://www.worksapis.com/v1.0/users/{user_id}"
+        user_detail_response = requests.get(user_detail_url, headers=headers)
+        
+        if user_detail_response.status_code != 200:
+            return False
+        
+        user_detail_info = user_detail_response.json()
+        
+        # 조직명 추출
+        org_name = ""
+        if "organizations" in user_detail_info and len(user_detail_info["organizations"]) > 0:
+            organizations = user_detail_info["organizations"][0]
+            if "orgUnits" in organizations and len(organizations["orgUnits"]) > 0:
+                org_unit = organizations["orgUnits"][0]
+                org_name = org_unit.get("orgUnitName", "")
+        
+        # 관리자 조직 확인
+        is_admin = (org_name == "AI기반SW개발Unit")
+        
+        if not is_admin:
+            raise HTTPException(status_code=403, detail="관리자 권한이 필요합니다")
+        
+        return True
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"권한 확인 중 오류: {str(e)}")
+        raise HTTPException(status_code=500, detail="권한 확인 중 오류가 발생했습니다")
