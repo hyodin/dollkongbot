@@ -19,9 +19,15 @@ interface AuthCallbackProps {
 
 const AuthCallback: React.FC<AuthCallbackProps> = ({ onLoginSuccess }) => {
   const [isProcessing, setIsProcessing] = useState(true);
+  const [hasProcessed, setHasProcessed] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
+    // 이미 처리된 경우 무한루프 방지
+    if (hasProcessed) {
+      return;
+    }
+
     const processCallback = async () => {
       try {
         const urlParams = new URLSearchParams(window.location.search);
@@ -32,23 +38,29 @@ const AuthCallback: React.FC<AuthCallbackProps> = ({ onLoginSuccess }) => {
         // 오류 처리
         if (error) {
           toast.error(`로그인 오류: ${error}`);
-          navigate('/');
+          setHasProcessed(true);
+          navigate('/', { replace: true });
           return;
         }
 
         // 상태 확인
         if (state !== 'naverworks_auth') {
           toast.error('잘못된 인증 요청입니다');
-          navigate('/');
+          setHasProcessed(true);
+          navigate('/', { replace: true });
           return;
         }
 
         // 인증 코드가 없는 경우
         if (!code) {
           toast.error('인증 코드를 받지 못했습니다');
-          navigate('/');
+          setHasProcessed(true);
+          navigate('/', { replace: true });
           return;
         }
+
+        // 처리 시작 표시
+        setHasProcessed(true);
 
         // 백엔드로 토큰 교환 요청
         const response = await fetch('/api/auth/naverworks/callback', {
@@ -56,7 +68,7 @@ const AuthCallback: React.FC<AuthCallbackProps> = ({ onLoginSuccess }) => {
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ code, redirect_uri: window.location.origin + '/auth/callback' }),
+          body: JSON.stringify({ code, redirect_uri: 'http://localhost:3000/' }),
         });
 
         if (!response.ok) {
@@ -69,10 +81,18 @@ const AuthCallback: React.FC<AuthCallbackProps> = ({ onLoginSuccess }) => {
           // 사용자 정보 저장
           localStorage.setItem('naverworks_token', data.access_token);
           localStorage.setItem('naverworks_user', JSON.stringify(data.user));
+          // 관리자 여부 저장
+          localStorage.setItem('naverworks_is_admin', data.is_admin ? 'true' : 'false');
           
           onLoginSuccess(data.user);
-          toast.success('네이버웍스 로그인 성공!');
-          navigate('/');
+          
+          // 관리자 여부에 따른 메시지 출력
+          if (data.is_admin) {
+            toast.success('관리자로 로그인되었습니다!');
+          } else {
+            toast.success('네이버웍스 로그인 성공!');
+          }
+          navigate('/', { replace: true });
         } else {
           throw new Error(data.message || '로그인 실패');
         }
@@ -80,14 +100,14 @@ const AuthCallback: React.FC<AuthCallbackProps> = ({ onLoginSuccess }) => {
       } catch (error: any) {
         console.error('OAuth 콜백 처리 오류:', error);
         toast.error(error.message || '로그인 처리 중 오류가 발생했습니다');
-        navigate('/');
+        navigate('/', { replace: true });
       } finally {
         setIsProcessing(false);
       }
     };
 
     processCallback();
-  }, [onLoginSuccess, navigate]);
+  }, [onLoginSuccess, navigate, hasProcessed]);
 
   if (isProcessing) {
     return (

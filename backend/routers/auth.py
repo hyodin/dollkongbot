@@ -28,6 +28,7 @@ class OAuthResponse(BaseModel):
     success: bool
     access_token: str
     user: Dict[str, Any]
+    is_admin: bool = False
     message: str = ""
 
 @router.post("/naverworks/callback")
@@ -88,10 +89,63 @@ async def naverworks_callback(request: OAuthCallbackRequest):
         
         logger.info(f"사용자 정보 조회 성공: {user_data['name']} ({user_data['email']})")
         
+        # 4. 조직 정보 조회 및 관리자 여부 확인
+        is_admin = False
+        user_id = user_data["id"]
+        
+        try:
+            # 4-1. GET /users/{userId} API로 사용자 상세 정보 및 조직 정보 조회
+            user_detail_url = f"https://www.worksapis.com/v1.0/users/{user_id}"
+            logger.info(f"사용자 상세 정보 조회 시작: {user_detail_url}")
+            
+            user_detail_response = requests.get(user_detail_url, headers=headers)
+            logger.info(f"사용자 상세 API 응답: {user_detail_response.status_code}")
+            
+            if user_detail_response.status_code == 200:
+                user_detail_info = user_detail_response.json()
+                logger.info(f"사용자 상세 정보: {user_detail_info}")
+                
+                # 조직 정보 추출
+                # 응답 구조: organizations[0].orgUnits[0].orgUnitName
+                org_name = ""
+                
+                try:
+                    if "organizations" in user_detail_info and len(user_detail_info["organizations"]) > 0:
+                        organizations = user_detail_info["organizations"][0]
+                        if "orgUnits" in organizations and len(organizations["orgUnits"]) > 0:
+                            org_unit = organizations["orgUnits"][0]
+                            org_name = org_unit.get("orgUnitName", "")
+                            logger.info(f"조직명 추출 성공: {org_name}")
+                    
+                    # 대안: 최상위에 orgUnits가 있는 경우 (구버전 API)
+                    if not org_name and "orgUnits" in user_detail_info and len(user_detail_info["orgUnits"]) > 0:
+                        org_name = user_detail_info["orgUnits"][0].get("orgUnitName", "")
+                        logger.info(f"조직명 추출 성공 (레거시): {org_name}")
+                except Exception as extract_error:
+                    logger.error(f"조직명 추출 중 오류: {extract_error}")
+                
+                if org_name:
+                    logger.info(f"사용자 조직 정보: {org_name}")
+                    
+                    # 관리자 조직인지 확인 (AI기반SW개발Unit)
+                    if org_name == "AI기반SW개발Unit":
+                        is_admin = True
+                        logger.info(f"✓ 관리자 확인: {user_data['name']} (조직: {org_name})")
+                    else:
+                        logger.info(f"일반 사용자: {user_data['name']} (조직: {org_name})")
+                else:
+                    logger.warning(f"사용자 상세 정보에서 조직명을 찾을 수 없습니다")
+            else:
+                logger.warning(f"사용자 상세 정보 조회 실패: {user_detail_response.status_code} - {user_detail_response.text}")
+        except Exception as e:
+            logger.error(f"조직 정보 조회 중 오류: {str(e)}")
+            # 조직 정보 조회 실패 시에도 로그인은 허용하되, 관리자는 아닌 것으로 처리
+        
         return OAuthResponse(
             success=True,
             access_token=access_token,
             user=user_data,
+            is_admin=is_admin,
             message="로그인 성공"
         )
         

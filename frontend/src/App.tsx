@@ -17,7 +17,12 @@ import apiClient, { SearchResponse, SearchResult, UploadResponse, DocumentInfo }
 // 네이버웍스 사용자 타입
 interface NaverWorksUser {
   id: string;
-  name: string;
+  name: string | {
+    lastName?: string;
+    firstName?: string;
+    phoneticLastName?: string;
+    phoneticFirstName?: string;
+  };
   email: string;
   profile_image?: string;
 }
@@ -33,7 +38,8 @@ function MainApp() {
   const [stats, setStats] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'search' | 'chat'>('search');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [user, setUser] = useState<NaverWorksUser | null>(null);
+  const [user, setUser] = useState<NaverWorksUser | undefined>(undefined);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   // 컴포넌트 마운트 시 문서 목록 로드 및 OAuth 콜백 처리
   useEffect(() => {
@@ -62,9 +68,19 @@ function MainApp() {
             if (data.success) {
               localStorage.setItem('naverworks_token', data.access_token);
               localStorage.setItem('naverworks_user', JSON.stringify(data.user));
+              // 관리자 여부 저장
+              localStorage.setItem('naverworks_is_admin', data.is_admin ? 'true' : 'false');
+              
               setUser(data.user);
               setIsLoggedIn(true);
-              toast.success('네이버웍스 로그인 성공!');
+              setIsAdmin(data.is_admin || false);
+              
+              // 관리자 여부에 따른 메시지
+              if (data.is_admin) {
+                toast.success('✅ 관리자로 로그인되었습니다!');
+              } else {
+                toast.success('네이버웍스 로그인 성공!');
+              }
               
               // URL에서 파라미터 제거
               window.history.replaceState({}, document.title, window.location.pathname);
@@ -83,16 +99,23 @@ function MainApp() {
     const checkAuthStatus = () => {
       const token = localStorage.getItem('naverworks_token');
       const userData = localStorage.getItem('naverworks_user');
+      const isAdminStr = localStorage.getItem('naverworks_is_admin');
       
       if (token && userData) {
         try {
           const user = JSON.parse(userData);
+          const adminStatus = isAdminStr === 'true';
+          
           setUser(user);
           setIsLoggedIn(true);
+          setIsAdmin(adminStatus);
+          
+          console.log('로그인 상태 복원:', { user, isAdmin: adminStatus });
         } catch (error) {
           console.error('사용자 정보 파싱 오류:', error);
           localStorage.removeItem('naverworks_user');
           localStorage.removeItem('naverworks_token');
+          localStorage.removeItem('naverworks_is_admin');
         }
       }
     };
@@ -105,16 +128,24 @@ function MainApp() {
 
   // 로그인 성공 처리
   const handleLoginSuccess = (user: NaverWorksUser) => {
+    const isAdminStr = localStorage.getItem('naverworks_is_admin');
+    const adminStatus = isAdminStr === 'true';
+    
     setUser(user);
     setIsLoggedIn(true);
+    setIsAdmin(adminStatus);
+    
+    console.log('로그인 성공:', { user, isAdmin: adminStatus });
   };
 
   // 로그아웃 처리
   const handleLogout = () => {
-    setUser(null);
+    setUser(undefined);
+    setIsAdmin(false);
     setIsLoggedIn(false);
     localStorage.removeItem('naverworks_user');
     localStorage.removeItem('naverworks_token');
+    localStorage.removeItem('naverworks_is_admin');
     toast.success('로그아웃되었습니다');
   };
 
@@ -296,6 +327,13 @@ function MainApp() {
                     </div>
                     <div>임베딩 차원</div>
                   </div>
+                </div>
+              )}
+              
+              {/* 관리자 뱃지 */}
+              {isLoggedIn && isAdmin && (
+                <div className="px-3 py-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs font-bold rounded-full shadow-lg">
+                  👑 ADMIN
                 </div>
               )}
               

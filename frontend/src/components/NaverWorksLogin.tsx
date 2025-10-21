@@ -84,6 +84,7 @@ const NaverWorksLogin: React.FC<NaverWorksLoginProps> = ({
   const handleLogout = () => {
     localStorage.removeItem('naverworks_user');
     localStorage.removeItem('naverworks_token');
+    localStorage.removeItem('naverworks_is_admin');
     onLogout();
     toast.success('로그아웃되었습니다');
   };
