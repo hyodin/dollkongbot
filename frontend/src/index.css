@@ -91,3 +91,259 @@
   border-radius: 2px;
 }
 
+/* 돌콩이 채팅방 스타일 - 눈이 편안한 파스텔 배경 */
+.dollkong-chat-container {
+  background: linear-gradient(135deg, #fef7f0 0%, #f8fafc 100%);
+  background-image: 
+    radial-gradient(circle at 25% 25%, rgba(255, 228, 196, 0.3) 0%, transparent 50%),
+    radial-gradient(circle at 75% 75%, rgba(230, 255, 230, 0.2) 0%, transparent 50%),
+    radial-gradient(circle at 50% 50%, rgba(240, 248, 255, 0.2) 0%, transparent 50%);
+  min-height: 100vh;
+}
+
+.dollkong-chat-bubble {
+  position: relative;
+  max-width: 80%;
+  padding: 12px 16px;
+  border-radius: 20px;
+  margin: 8px 0;
+  word-wrap: break-word;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  animation: messageSlide 0.3s ease-out;
+}
+
+.dollkong-chat-bubble.user {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  margin-left: auto;
+  border-bottom-right-radius: 6px;
+}
+
+.dollkong-chat-bubble.assistant {
+  background: linear-gradient(135deg, #fef3e2 0%, #e8f4fd 100%);
+  color: #4a5568;
+  margin-right: auto;
+  border-bottom-left-radius: 6px;
+  border: 1px solid rgba(255, 228, 196, 0.3);
+}
+
+.dollkong-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 12px;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  animation: bounce 2s infinite;
+  overflow: hidden;
+}
+
+.dollkong-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.dollkong-avatar .dollkong-icon {
+  width: 100%;
+  height: 100%;
+  background: url('/dollkong.png') center/cover no-repeat;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: #666;
+  font-weight: bold;
+  text-shadow: 1px 1px 2px rgba(255, 255, 255, 0.8);
+}
+
+/* 돌콩이 이미지 최적화 */
+.dollkong-avatar img {
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+  transition: transform 0.2s ease;
+}
+
+.dollkong-avatar:hover img {
+  transform: scale(1.05);
+}
+
+.dollkong-input-area {
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(10px);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 25px;
+  padding: 12px 20px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+.dollkong-send-button {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+.dollkong-send-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+}
+
+.dollkong-send-button:active {
+  transform: translateY(0);
+}
+
+.dollkong-typing-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #fef3e2 0%, #e8f4fd 100%);
+  border-radius: 20px;
+  color: #4a5568;
+  max-width: fit-content;
+  margin: 8px 0;
+  border: 1px solid rgba(255, 228, 196, 0.3);
+}
+
+.dollkong-typing-dots {
+  display: flex;
+  gap: 4px;
+}
+
+.dollkong-typing-dots span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(74, 85, 104, 0.6);
+  animation: typing 1.4s infinite ease-in-out;
+}
+
+.dollkong-typing-dots span:nth-child(1) { animation-delay: -0.32s; }
+.dollkong-typing-dots span:nth-child(2) { animation-delay: -0.16s; }
+
+.dollkong-faq-button {
+  background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 20px;
+  padding: 8px 16px;
+  margin: 4px;
+  color: #666;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.dollkong-faq-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  background: linear-gradient(135deg, #fed6e3 0%, #a8edea 100%);
+}
+
+.dollkong-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 16px 20px;
+  border-radius: 20px 20px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+.dollkong-header .dollkong-avatar {
+  margin-right: 0;
+}
+
+.dollkong-message-container {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.dollkong-message-container.user {
+  flex-direction: row-reverse;
+}
+
+.dollkong-message-container.user .dollkong-avatar {
+  margin-left: 12px;
+  margin-right: 0;
+}
+
+/* 애니메이션 */
+@keyframes messageSlide {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes bounce {
+  0%, 20%, 50%, 80%, 100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-10px);
+  }
+  60% {
+    transform: translateY(-5px);
+  }
+}
+
+@keyframes typing {
+  0%, 80%, 100% {
+    transform: scale(0.8);
+    opacity: 0.5;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* 돌콩이 배경 패턴 - 부드러운 파스텔 */
+.dollkong-bg-pattern {
+  background-image: 
+    radial-gradient(circle at 25% 25%, rgba(255, 240, 230, 0.15) 0%, transparent 60%),
+    radial-gradient(circle at 75% 75%, rgba(240, 255, 240, 0.1) 0%, transparent 60%),
+    radial-gradient(circle at 50% 50%, rgba(245, 250, 255, 0.1) 0%, transparent 60%);
+}
+
+/* 스크롤바 스타일링 */
+.dollkong-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.dollkong-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+.dollkong-scrollbar::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 4px;
+}
+
+.dollkong-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+}
+

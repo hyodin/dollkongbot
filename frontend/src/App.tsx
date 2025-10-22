@@ -284,7 +284,7 @@ function MainApp() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* 헤더 */}
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -367,8 +367,8 @@ function MainApp() {
       </header>
 
       {/* 메인 컨텐츠 */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className={`grid grid-cols-1 gap-8 ${isAdmin ? 'lg:grid-cols-3' : ''}`}>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 flex flex-col">
+        <div className={`grid grid-cols-1 gap-8 flex-1 ${isAdmin ? 'lg:grid-cols-3' : ''}`}>
           {/* 좌측: 파일 업로드 및 문서 목록 (관리자 전용) */}
           {isAdmin && (
             <div className="lg:col-span-1 space-y-6">
@@ -434,7 +434,7 @@ function MainApp() {
           )}
 
           {/* 우측: 검색/채팅 탭 */}
-          <div className={`space-y-6 ${isAdmin ? 'lg:col-span-2' : ''}`}>
+          <div className={`space-y-6 flex flex-col ${isAdmin ? 'lg:col-span-2' : ''}`}>
             {/* 탭 네비게이션 */}
             <div className="card">
               <div className="flex border-b border-gray-200">
@@ -501,7 +501,7 @@ function MainApp() {
               </>
             ) : (
               /* RAG 채팅 인터페이스 */
-              <div className="h-[600px]">
+              <div className="flex-1 min-h-[600px]">
                 <ChatInterface className="h-full" />
               </div>
             )}
@@ -509,17 +509,20 @@ function MainApp() {
         </div>
       </main>
 
-      {/* 푸터 */}
-      <footer className="bg-white border-t border-gray-200 mt-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      {/* 돌콩이 푸터 */}
+      <footer className="bg-gradient-to-r from-pink-50 to-purple-50 border-t border-pink-200 mt-auto">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-500">
-              © 2025 한국어 문서 벡터 검색 시스템
+            <div className="flex items-center space-x-2 text-sm text-gray-600">
+              <div className="dollkong-avatar" style={{width: '20px', height: '20px'}}>
+                <img src="/dollkong.png" alt="돌콩이" />
+              </div>
+              <span>© 2025 돌콩이 AI 어시스턴트</span>
             </div>
-            <div className="flex items-center space-x-4 text-sm text-gray-500">
-              <span>KoSBERT + Qdrant + Gemini</span>
-              <span>•</span>
-              <span>FastAPI + React</span>
+            <div className="flex items-center space-x-3 text-xs text-gray-500">
+              <span className="bg-pink-100 px-2 py-1 rounded-full">🤖 Gemma-2-9B</span>
+              <span className="bg-purple-100 px-2 py-1 rounded-full">🔍 KoSBERT</span>
+              <span className="bg-blue-100 px-2 py-1 rounded-full">⚡ FastAPI + React</span>
             </div>
           </div>
         </div>

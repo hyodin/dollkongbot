@@ -286,28 +286,28 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
   };
 
   return (
-    <div className={`flex flex-col h-full bg-white rounded-lg shadow-lg ${className}`}>
-      {/* 헤더 */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-200">
-        <div className="flex items-center space-x-2">
-          <span className="text-xl">🤖</span>
-          <h2 className="text-lg font-semibold text-gray-800">RAG 채팅</h2>
-          <span className="text-sm text-gray-500">
-            (Gemma-2-9B + 문서 검색)
-          </span>
+    <div className={`dollkong-chat-container dollkong-bg-pattern ${className}`}>
+      {/* 돌콩이 헤더 */}
+      <div className="dollkong-header">
+        <div className="dollkong-avatar">
+          <img src="/dollkong.png" alt="돌콩이" />
+        </div>
+        <div className="flex-1">
+          <h2 className="text-lg font-bold">돌콩이 AI 어시스턴트</h2>
+          <p className="text-sm opacity-90">Gemma-2-9B + 문서 검색으로 정확한 답변을 제공해요!</p>
         </div>
         
         <div className="flex items-center space-x-2">
           <button
             onClick={() => setShowSettings(!showSettings)}
-            className="p-2 text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-100"
+            className="p-2 text-white hover:bg-white hover:bg-opacity-20 rounded-full transition-colors"
             title="설정"
           >
             ⚙️
           </button>
           <button
             onClick={clearChat}
-            className="p-2 text-gray-500 hover:text-red-600 rounded-lg hover:bg-gray-100"
+            className="p-2 text-white hover:bg-white hover:bg-opacity-20 rounded-full transition-colors"
             title="채팅 기록 삭제"
           >
             🗑️
@@ -315,97 +315,106 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
         </div>
       </div>
 
-      {/* 설정 패널 */}
+      {/* 돌콩이 설정 패널 */}
       {showSettings && (
-        <div className="p-4 bg-gray-50 border-b border-gray-200">
-          <div className="space-y-3">
-            <div className="flex items-center space-x-2">
+        <div className="p-6 bg-gradient-to-r from-orange-50 to-blue-50 border-b border-orange-100">
+          <div className="space-y-4">
+            <div className="flex items-center space-x-3">
               <input
                 type="checkbox"
                 id="useContext"
                 checked={useContext}
                 onChange={(e) => setUseContext(e.target.checked)}
-                className="rounded"
+                className="w-4 h-4 text-purple-600 bg-gray-100 border-gray-300 rounded focus:ring-purple-500"
               />
-              <label htmlFor="useContext" className="text-sm text-gray-700">
-                문서 검색 사용
+              <label htmlFor="useContext" className="text-sm font-medium text-gray-700">
+                📚 문서 검색 사용하기
               </label>
             </div>
             
             {useContext && (
-              <>
-                <div className="flex items-center space-x-4">
-                  <div className="flex items-center space-x-2">
-                    <label className="text-sm text-gray-700">최대 검색 결과:</label>
-                    <select
-                      value={maxResults}
-                      onChange={(e) => setMaxResults(Number(e.target.value))}
-                      className="px-2 py-1 text-sm border border-gray-300 rounded"
-                    >
-                      <option value={1}>1개</option>
-                      <option value={3}>3개</option>
-                      <option value={5}>5개</option>
-                      <option value={10}>10개</option>
-                    </select>
-                  </div>
-                  
-                  <div className="flex items-center space-x-2">
-                    <label className="text-sm text-gray-700">최소 점수:</label>
-                    <select
-                      value={scoreThreshold}
-                      onChange={(e) => setScoreThreshold(Number(e.target.value))}
-                      className="px-2 py-1 text-sm border border-gray-300 rounded"
-                    >
-                      <option value={0.1}>0.1 (매우 관대)</option>
-                      <option value={0.3}>0.3 (관대)</option>
-                      <option value={0.5}>0.5 (보통)</option>
-                      <option value={0.7}>0.7 (엄격)</option>
-                    </select>
-                  </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">🔍 최대 검색 결과:</label>
+                  <select
+                    value={maxResults}
+                    onChange={(e) => setMaxResults(Number(e.target.value))}
+                    className="w-full px-3 py-2 text-sm border border-pink-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  >
+                    <option value={1}>1개</option>
+                    <option value={3}>3개</option>
+                    <option value={5}>5개</option>
+                    <option value={10}>10개</option>
+                  </select>
                 </div>
-              </>
+                
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">🎯 최소 점수:</label>
+                  <select
+                    value={scoreThreshold}
+                    onChange={(e) => setScoreThreshold(Number(e.target.value))}
+                    className="w-full px-3 py-2 text-sm border border-pink-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  >
+                    <option value={0.1}>0.1 (매우 관대)</option>
+                    <option value={0.3}>0.3 (관대)</option>
+                    <option value={0.5}>0.5 (보통)</option>
+                    <option value={0.7}>0.7 (엄격)</option>
+                  </select>
+                </div>
+              </div>
             )}
           </div>
         </div>
       )}
 
-      {/* 메시지 목록 */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      {/* 돌콩이 메시지 목록 */}
+      <div className="flex-1 overflow-y-auto p-6 space-y-4 dollkong-scrollbar">
         {messages.length === 0 ? (
-          <div className="text-center text-gray-500 mt-8">
-            <div className="text-4xl mb-4">🏢</div>
-            <h3 className="text-lg font-semibold text-gray-700 mb-2">사내규정 AI 어시스턴트</h3>
-            <p className="mb-4">업로드된 사내규정 문서를 바탕으로 정확한 답변을 제공합니다.</p>
+          <div className="text-center text-gray-600 mt-12">
+            <div className="dollkong-avatar mx-auto mb-6" style={{width: '80px', height: '80px'}}>
+              <img src="/dollkong.png" alt="돌콩이" />
+            </div>
+            <h3 className="text-2xl font-bold text-gray-800 mb-3">안녕하세요! 돌콩이에요! 👋</h3>
+            <p className="text-lg text-gray-600 mb-8">업로드된 사내규정 문서를 바탕으로 정확한 답변을 제공해드릴게요!</p>
             
             {/* FAQ 키워드 영역 */}
-            <div className="max-w-2xl mx-auto">
-              <p className="text-sm font-medium text-gray-600 mb-3">💡 사내규정 관련 궁금한 주제를 선택해보세요:</p>
+            <div className="max-w-3xl mx-auto">
+              <p className="text-lg font-medium text-gray-700 mb-6">💡 사내규정 관련 궁금한 주제를 선택해보세요:</p>
               
               {isLoadingFAQ ? (
-                <div className="flex justify-center items-center py-4">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
-                  <span className="ml-2 text-gray-600">FAQ를 불러오는 중...</span>
+                <div className="flex justify-center items-center py-8">
+                  <div className="dollkong-typing-indicator">
+                    <div className="dollkong-avatar">
+                      <img src="/dollkong.png" alt="돌콩이" />
+                    </div>
+                    <span>FAQ를 불러오는 중...</span>
+                    <div className="dollkong-typing-dots">
+                      <span></span>
+                      <span></span>
+                      <span></span>
+                    </div>
+                  </div>
                 </div>
               ) : faqLevel3Questions.length > 0 ? (
                 // lvl3 질문 목록 표시
-                <div className="space-y-3">
+                <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium text-gray-700">
+                    <p className="text-lg font-medium text-gray-700">
                       {selectedLevel2} 관련 질문
                     </p>
                     <button
                       onClick={resetToLevel2}
-                      className="text-xs text-blue-600 hover:text-blue-800 underline"
+                      className="dollkong-faq-button text-sm"
                     >
                       ← 뒤로가기
                     </button>
                   </div>
-                  <div className="flex flex-wrap gap-2 text-sm">
+                  <div className="flex flex-wrap gap-3">
                     {faqLevel3Questions.map((question, index) => (
                       <button
                         key={index}
                         onClick={() => handleLevel3Click(question)}
-                        className="px-4 py-2 text-left bg-green-50 hover:bg-green-100 rounded-lg border border-green-200 transition-colors whitespace-nowrap"
+                        className="dollkong-faq-button text-base px-6 py-3"
                       >
                         {getKeywordString(question)}
                       </button>
@@ -414,24 +423,24 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
                 </div>
               ) : faqLevel2Keywords.length > 0 ? (
                 // lvl2 키워드 목록 표시
-                <div className="space-y-3">
+                <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium text-gray-700">
+                    <p className="text-lg font-medium text-gray-700">
                       {selectedLevel1} 하위 키워드
                     </p>
                     <button
                       onClick={resetToLevel1}
-                      className="text-xs text-blue-600 hover:text-blue-800 underline"
+                      className="dollkong-faq-button text-sm"
                     >
                       ← 뒤로가기
                     </button>
                   </div>
-                  <div className="flex flex-wrap gap-2 text-sm">
+                  <div className="flex flex-wrap gap-3">
                     {faqLevel2Keywords.map((keyword, index) => (
                       <button
                         key={index}
                         onClick={() => handleLevel2Click(keyword)}
-                        className="px-4 py-2 text-left bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition-colors whitespace-nowrap"
+                        className="dollkong-faq-button text-base px-6 py-3"
                       >
                         {getKeywordString(keyword)}
                       </button>
@@ -440,12 +449,12 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
                 </div>
               ) : faqLevel1Keywords.length > 0 ? (
                 // lvl1 키워드 목록 표시
-                <div className="flex flex-wrap gap-2 text-sm">
+                <div className="flex flex-wrap gap-3 justify-center">
                   {faqLevel1Keywords.map((keyword, index) => (
                     <button
                       key={index}
                       onClick={() => handleLevel1Click(keyword)}
-                      className="px-4 py-2 text-left bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition-colors whitespace-nowrap"
+                      className="dollkong-faq-button text-lg px-8 py-4"
                     >
                       {getKeywordString(keyword)}
                     </button>
@@ -453,8 +462,11 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
                 </div>
               ) : (
                 // FAQ가 없을 때
-                <div className="text-center py-4">
-                  <p className="text-gray-500">등록된 FAQ가 없습니다.</p>
+                <div className="text-center py-8">
+                  <div className="dollkong-avatar mx-auto mb-4">
+                    <img src="/dollkong.png" alt="돌콩이" />
+                  </div>
+                  <p className="text-gray-500 text-lg">등록된 FAQ가 없어요 😅</p>
                 </div>
               )}
             </div>
@@ -463,23 +475,24 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
           messages.map((message) => (
             <div
               key={message.id}
-              className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              className={`dollkong-message-container ${message.role === 'user' ? 'user' : ''}`}
             >
-              <div
-                className={`max-w-3xl rounded-lg p-3 ${
-                  message.role === 'user'
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-gray-100 text-gray-800'
-                }`}
-              >
+              {/* 돌콩이 아바타 (assistant만) */}
+              {message.role === 'assistant' && (
+                <div className="dollkong-avatar">
+                  <img src="/dollkong.png" alt="돌콩이" />
+                </div>
+              )}
+              
+              <div className={`dollkong-chat-bubble ${message.role}`}>
                 <div className="whitespace-pre-wrap">{message.content}</div>
                 
                 {/* Assistant 메시지의 추가 정보 */}
                 {message.role === 'assistant' && (
-                  <div className="mt-2 pt-2 border-t border-gray-200">
+                  <div className="mt-3 pt-3 border-t border-gray-300 border-opacity-30">
                     {/* 처리 시간 */}
                     {message.processing_time && (
-                      <div className="text-xs text-gray-500 mb-2">
+                      <div className="text-xs text-gray-600 mb-2">
                         ⏱️ 처리 시간: {message.processing_time.total.toFixed(2)}초 
                         (검색: {message.processing_time.search.toFixed(2)}초, 
                         생성: {message.processing_time.generation.toFixed(2)}초)
@@ -488,7 +501,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
                     
                     {/* 토큰 사용량 */}
                     {message.token_usage && (
-                      <div className="text-xs text-gray-500 mb-2">
+                      <div className="text-xs text-gray-600 mb-2">
                         🔤 토큰: {message.token_usage.total_tokens}개 
                         (입력: {message.token_usage.prompt_tokens}, 
                         출력: {message.token_usage.completion_tokens})
@@ -497,23 +510,23 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
                     
                     {/* 참조 문서 */}
                     {message.context_documents && message.context_documents.length > 0 && (
-                      <div className="mt-2">
-                        <div className="text-xs text-gray-600 mb-1">
+                      <div className="mt-3">
+                        <div className="text-xs text-gray-700 mb-2">
                           📚 참조 문서 ({message.context_documents.length}개):
                         </div>
-                        <div className="space-y-1">
+                        <div className="space-y-2">
                           {message.context_documents.map((doc, index) => (
                             <div
                               key={index}
-                              className="text-xs bg-white p-2 rounded border"
+                              className="text-xs bg-white bg-opacity-60 p-3 rounded-lg border border-gray-200"
                             >
-                              <div className="font-medium text-gray-700">
+                              <div className="font-medium text-gray-800">
                                 📄 {doc.source}
                               </div>
                               <div className="text-gray-600 mt-1 line-clamp-2">
                                 {doc.text.substring(0, 100)}...
                               </div>
-                              <div className="mt-1">
+                              <div className="mt-2">
                                 <span className={`font-medium ${getScoreColor(doc.score)}`}>
                                   관련도: {Math.round(doc.score * 100)}%
                                 </span>
@@ -526,7 +539,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
                   </div>
                 )}
                 
-                <div className="text-xs opacity-70 mt-1">
+                <div className="text-xs text-gray-500 mt-2">
                   {message.timestamp.toLocaleTimeString()}
                 </div>
               </div>
@@ -534,13 +547,18 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
           ))
         )}
         
-        {/* 로딩 인디케이터 */}
+        {/* 돌콩이 타이핑 인디케이터 */}
         {isLoading && (
-          <div className="flex justify-start">
-            <div className="bg-gray-100 rounded-lg p-3">
-              <div className="flex items-center space-x-2">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
-                <span className="text-gray-600">AI가 답변을 생성하고 있습니다...</span>
+          <div className="dollkong-message-container">
+            <div className="dollkong-avatar">
+              <img src="/dollkong.png" alt="돌콩이" />
+            </div>
+            <div className="dollkong-typing-indicator">
+              <span>돌콩이가 답변을 준비하고 있어요...</span>
+              <div className="dollkong-typing-dots">
+                <span></span>
+                <span></span>
+                <span></span>
               </div>
             </div>
           </div>
@@ -549,32 +567,41 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* 입력 영역 */}
-      <div className="border-t border-gray-200 p-4">
-        <div className="flex space-x-2">
-          <textarea
-            ref={inputRef}
-            value={inputMessage}
-            onChange={(e) => setInputMessage(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder="문서에 대한 질문을 입력하세요... (Enter: 전송, Shift+Enter: 줄바꿈)"
-            className="flex-1 resize-none border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[44px] max-h-32"
-            rows={1}
-            disabled={isLoading}
-          />
+      {/* 돌콩이 입력 영역 */}
+      <div className="p-6 bg-gradient-to-r from-orange-50 to-blue-50 border-t border-orange-100">
+        <div className="flex space-x-3">
+          <div className="dollkong-input-area flex-1">
+            <textarea
+              ref={inputRef}
+              value={inputMessage}
+              onChange={(e) => setInputMessage(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder="돌콩이에게 궁금한 것을 물어보세요! 💬 (Enter: 전송, Shift+Enter: 줄바꿈)"
+              className="w-full resize-none bg-transparent border-none outline-none text-gray-700 placeholder-gray-500 min-h-[44px] max-h-32"
+              rows={1}
+              disabled={isLoading}
+            />
+          </div>
           <button
             onClick={handleSendMessage}
             disabled={!inputMessage.trim() || isLoading}
-            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+            className="dollkong-send-button"
+            title="메시지 전송"
           >
-            {isLoading ? '⏳' : '📤'}
+            {isLoading ? '⏳' : '💌'}
           </button>
         </div>
         
-        {/* 상태 정보 */}
-        <div className="mt-2 text-xs text-gray-500">
-          {useContext ? '🔍 문서 검색 활성화' : '💭 일반 채팅 모드'} | 
-          모델: Gemma-2-9B
+        {/* 돌콩이 상태 정보 */}
+        <div className="mt-4 flex items-center justify-center space-x-4 text-sm text-gray-600">
+          <div className="flex items-center space-x-2">
+            <div className="dollkong-avatar" style={{width: '24px', height: '24px'}}>
+              <img src="/dollkong.png" alt="돌콩이" />
+            </div>
+            <span>{useContext ? '🔍 문서 검색 활성화' : '💭 일반 채팅 모드'}</span>
+          </div>
+          <span>•</span>
+          <span>🤖 Gemma-2-9B</span>
         </div>
       </div>
     </div>
