@@ -30,13 +30,13 @@ class FAQAnswerResponse(BaseModel):
     message: Optional[str] = Field(None, description="응답 메시지")
 
 
-@router.get("/faq/lvl1", response_model=FAQResponse)
-async def get_faq_lvl1_keywords() -> FAQResponse:
+@router.get("/faq/lvl1")
+async def get_faq_lvl1_keywords():
     """
-    FAQ lvl1 키워드 목록 조회
+    FAQ lvl1 키워드 목록 조회 (visible=true만 반환, order 순서대로)
     
     Returns:
-        lvl1 키워드 리스트
+        lvl1 키워드 리스트 with metadata
     """
     try:
         logger.info("FAQ lvl1 키워드 조회 요청")
@@ -45,19 +45,19 @@ async def get_faq_lvl1_keywords() -> FAQResponse:
         keywords = vector_db.get_faq_lvl1_keywords()
         
         if not keywords:
-            return FAQResponse(
-                status="success",
-                data=[],
-                message="등록된 FAQ가 없습니다."
-            )
+            return {
+                "status": "success",
+                "data": [],
+                "message": "등록된 FAQ가 없습니다."
+            }
         
-        logger.info(f"✓ lvl1 키워드 조회 완료 - {len(keywords)}개")
+        logger.info(f"✓ lvl1 키워드 조회 완료 - {len(keywords)}개 (visible only)")
         
-        return FAQResponse(
-            status="success",
-            data=keywords,
-            message=f"{len(keywords)}개의 FAQ 주제를 찾았습니다."
-        )
+        return {
+            "status": "success",
+            "data": keywords,
+            "message": f"{len(keywords)}개의 FAQ 주제를 찾았습니다."
+        }
         
     except Exception as e:
         logger.error(f"❌ lvl1 키워드 조회 실패: {str(e)}")

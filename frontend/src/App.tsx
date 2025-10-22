@@ -12,6 +12,7 @@ import SearchBar from './components/SearchBar';
 import ResultList from './components/ResultList';
 import ChatInterface from './components/ChatInterface';
 import NaverWorksLogin from './components/NaverWorksLogin';
+import AdminPage from './components/AdminPage';
 import apiClient, { SearchResponse, SearchResult, UploadResponse, DocumentInfo } from './api/client';
 
 // 네이버웍스 사용자 타입
@@ -337,6 +338,22 @@ function MainApp() {
                 </div>
               )}
               
+              {/* 관리자 영역 버튼 */}
+              {isLoggedIn && isAdmin && (
+                <button
+                  onClick={() => {
+                    window.history.pushState({}, '', '/admin');
+                    window.location.reload();
+                  }}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium text-sm flex items-center space-x-2"
+                >
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd"/>
+                  </svg>
+                  <span>FAQ 관리</span>
+                </button>
+              )}
+              
               {/* 네이버웍스 로그인 */}
               <NaverWorksLogin
                 onLoginSuccess={handleLoginSuccess}
@@ -527,6 +544,34 @@ function MainApp() {
 
 // 메인 App 컴포넌트
 function App() {
+  const [currentPath, setCurrentPath] = useState(window.location.pathname);
+
+  useEffect(() => {
+    const handleLocationChange = () => {
+      setCurrentPath(window.location.pathname);
+    };
+    
+    window.addEventListener('popstate', handleLocationChange);
+    return () => window.removeEventListener('popstate', handleLocationChange);
+  }, []);
+
+  // /admin 경로인 경우 관리자 페이지 렌더링
+  if (currentPath === '/admin') {
+    return (
+      <>
+        <AdminPage />
+        <ToastContainer
+          position="top-right"
+          autoClose={3000}
+          hideProgressBar={false}
+          closeOnClick
+          pauseOnHover
+        />
+      </>
+    );
+  }
+
+  // 그 외에는 메인 앱 렌더링
   return <MainApp />;
 }
 

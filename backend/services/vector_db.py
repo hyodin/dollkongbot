@@ -285,6 +285,8 @@ class VectorDatabase:
             # RAG 최적화 메타데이터 추가
             if metadata_list and i < len(metadata_list):
                 metadata = metadata_list[i]
+                lvl1_keyword = metadata.get("lvl1", "")
+                
                 payload.update({
                     "search_text": metadata.get("search_text", chunk),
                     "context_text": metadata.get("context_text", chunk),
@@ -295,15 +297,21 @@ class VectorDatabase:
                     "row": metadata.get("row"),
                     "col": metadata.get("col"),
                     # 계층형 컬럼 추가
-                    "lvl1": metadata.get("lvl1", ""),
+                    "lvl1": lvl1_keyword,
                     "lvl2": metadata.get("lvl2", ""),
                     "lvl3": metadata.get("lvl3", ""),
-                    "lvl4": metadata.get("lvl4", "")
+                    "lvl4": metadata.get("lvl4", ""),
+                    # FAQ 관리 필드 추가 (기본값)
+                    "faq_visible": True if lvl1_keyword else False,  # lvl1이 있으면 노출
+                    "faq_order": 999  # 기본 순서 (나중에 관리자가 변경)
                 })
             else:
                 payload.update({
                     "search_text": chunk,
-                    "context_text": chunk
+                    "context_text": chunk,
+                    # FAQ 관리 필드 (일반 파일은 FAQ가 아니므로 기본값)
+                    "faq_visible": False,
+                    "faq_order": 999
                 })
             
             # 포인트 생성
@@ -588,33 +596,55 @@ class VectorDatabase:
             logger.error(f"❌ 파일 목록 조회 실패: {str(e)}")
             return []
 
-    def get_faq_lvl1_keywords(self) -> List[str]:
+    def get_faq_lvl1_keywords(self) -> List[Dict[str, Any]]:
         """
-        FAQ lvl1 키워드 목록 조회
+        FAQ lvl1 키워드 목록 조회 (노출 여부 필터링 + 순서 정렬)
         
         Returns:
-            lvl1 키워드 리스트 (중복 제거, 정렬)
+            lvl1 키워드 리스트 (노출된 것만, faq_order 순서대로)
+            [{"keyword": "시공문의", "visible": true, "order": 1}, ...]
         """
-        logger.info("FAQ lvl1 키워드 조회 중...")
+        logger.info("FAQ lvl1 키워드 조회 중 (visible 필터링)...")
         
         try:
-            # 모든 포인트 스크롤하여 lvl1 필드 수집
+            # faq_visible=true인 포인트만 조회
             scroll_result = self.client.scroll(
                 collection_name=self.collection_name,
-                limit=10000,  # 더 많은 데이터 조회
+                scroll_filter=models.Filter(
+                    must=[
+                        models.FieldCondition(
+                            key="faq_visible",
+                            match=models.MatchValue(value=True)
+                        )
+                    ]
+                ),
+                limit=10000,
                 with_payload=True,
                 with_vectors=False
             )
             
-            lvl1_keywords = set()
+            # lvl1별로 그룹화하고 최소 order 추출
+            lvl1_data = {}
             for point in scroll_result[0]:
                 lvl1 = point.payload.get("lvl1", "")
-                if lvl1 and lvl1.strip():  # 빈 문자열 제외
-                    lvl1_keywords.add(lvl1.strip())
+                if lvl1 and lvl1.strip():
+                    lvl1 = lvl1.strip()
+                    faq_order = point.payload.get("faq_order", 999)
+                    
+                    if lvl1 not in lvl1_data:
+                        lvl1_data[lvl1] = {
+                            "keyword": lvl1,
+                            "visible": True,
+                            "order": faq_order
+                        }
+                    else:
+                        # 같은 lvl1에 여러 포인트가 있으면 가장 작은 order 사용
+                        if faq_order < lvl1_data[lvl1]["order"]:
+                            lvl1_data[lvl1]["order"] = faq_order
             
-            # 정렬하여 반환
-            sorted_keywords = sorted(list(lvl1_keywords))
-            logger.info(f"✓ lvl1 키워드 조회 완료 - {len(sorted_keywords)}개")
+            # order 순서대로 정렬
+            sorted_keywords = sorted(lvl1_data.values(), key=lambda x: x["order"])
+            logger.info(f"✓ lvl1 키워드 조회 완료 - {len(sorted_keywords)}개 (visible only)")
             
             return sorted_keywords
             
@@ -787,6 +817,120 @@ class VectorDatabase:
         except Exception as e:
             logger.error(f"❌ 답변 조회 실패: {str(e)}")
             return None
+
+    def update_faq_settings(self, lvl1_keyword: str, visible: bool = None, order: int = None) -> bool:
+        """
+        특정 lvl1 키워드의 FAQ 설정 업데이트
+        
+        Args:
+            lvl1_keyword: 업데이트할 lvl1 키워드
+            visible: 노출 여부 (None이면 변경하지 않음)
+            order: 순서 (None이면 변경하지 않음)
+            
+        Returns:
+            업데이트 성공 여부
+        """
+        logger.info(f"FAQ 설정 업데이트 시작 - lvl1: {lvl1_keyword}")
+        logger.info(f"  visible: {visible}, order: {order}")
+        
+        try:
+            # 해당 lvl1 키워드를 가진 모든 포인트 조회
+            scroll_result = self.client.scroll(
+                collection_name=self.collection_name,
+                scroll_filter=models.Filter(
+                    must=[
+                        models.FieldCondition(
+                            key="lvl1",
+                            match=models.MatchValue(value=lvl1_keyword)
+                        )
+                    ]
+                ),
+                limit=10000,
+                with_payload=True,
+                with_vectors=False
+            )
+            
+            if not scroll_result[0]:
+                logger.warning(f"'{lvl1_keyword}' 키워드를 가진 포인트가 없습니다")
+                return False
+            
+            # 업데이트할 payload 구성
+            update_payload = {}
+            if visible is not None:
+                update_payload["faq_visible"] = visible
+            if order is not None:
+                update_payload["faq_order"] = order
+            
+            if not update_payload:
+                logger.warning("업데이트할 필드가 없습니다")
+                return False
+            
+            # 각 포인트 업데이트
+            update_count = 0
+            for point in scroll_result[0]:
+                self.client.set_payload(
+                    collection_name=self.collection_name,
+                    payload=update_payload,
+                    points=[point.id]
+                )
+                update_count += 1
+            
+            logger.info(f"✅ FAQ 설정 업데이트 완료 - {update_count}개 포인트 업데이트됨")
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ FAQ 설정 업데이트 실패: {str(e)}")
+            return False
+
+    def get_all_faq_lvl1_settings(self) -> List[Dict[str, Any]]:
+        """
+        모든 lvl1 키워드의 FAQ 설정 조회 (visible 여부 무관)
+        
+        Returns:
+            모든 lvl1 키워드와 설정 리스트
+        """
+        logger.info("모든 FAQ lvl1 설정 조회 중...")
+        
+        try:
+            # 모든 포인트 조회
+            scroll_result = self.client.scroll(
+                collection_name=self.collection_name,
+                limit=10000,
+                with_payload=True,
+                with_vectors=False
+            )
+            
+            # lvl1별로 그룹화
+            lvl1_data = {}
+            for point in scroll_result[0]:
+                lvl1 = point.payload.get("lvl1", "")
+                if lvl1 and lvl1.strip():
+                    lvl1 = lvl1.strip()
+                    faq_visible = point.payload.get("faq_visible", False)
+                    faq_order = point.payload.get("faq_order", 999)
+                    
+                    if lvl1 not in lvl1_data:
+                        lvl1_data[lvl1] = {
+                            "keyword": lvl1,
+                            "visible": faq_visible,
+                            "order": faq_order,
+                            "count": 1
+                        }
+                    else:
+                        lvl1_data[lvl1]["count"] += 1
+                        # 가장 작은 order 사용
+                        if faq_order < lvl1_data[lvl1]["order"]:
+                            lvl1_data[lvl1]["order"] = faq_order
+            
+            # order 순서대로 정렬
+            sorted_settings = sorted(lvl1_data.values(), key=lambda x: x["order"])
+            logger.info(f"✓ 모든 FAQ 설정 조회 완료 - {len(sorted_settings)}개")
+            
+            return sorted_settings
+            
+        except Exception as e:
+            logger.error(f"❌ FAQ 설정 조회 실패: {str(e)}")
+            return []
 
 
 # 싱글톤 인스턴스
