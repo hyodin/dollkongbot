@@ -37,7 +37,7 @@ function MainApp() {
   const [documents, setDocuments] = useState<DocumentInfo[]>([]);
   const [processingTime, setProcessingTime] = useState<number>(0);
   const [stats, setStats] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<'search' | 'chat'>('search');
+  const [activeTab, setActiveTab] = useState<'search' | 'chat'>('chat');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [user, setUser] = useState<NaverWorksUser | undefined>(undefined);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -438,6 +438,16 @@ function MainApp() {
             {/* 탭 네비게이션 */}
             <div className="card">
               <div className="flex border-b border-gray-200">
+              <button
+                  onClick={() => setActiveTab('chat')}
+                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    activeTab === 'chat'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  🤖 RAG 채팅
+                </button>
                 <button
                   onClick={() => setActiveTab('search')}
                   className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
@@ -447,16 +457,6 @@ function MainApp() {
                   }`}
                 >
                   🔍 문서 검색
-                </button>
-                <button
-                  onClick={() => setActiveTab('chat')}
-                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                    activeTab === 'chat'
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  🤖 RAG 채팅
                 </button>
               </div>
             </div>
