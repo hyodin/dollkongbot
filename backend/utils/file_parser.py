@@ -550,11 +550,60 @@ class FileParser:
         return lvl1, lvl2, lvl3, lvl4
     
     @staticmethod
+    def _has_cell_border(cell) -> bool:
+        """셀에 테두리가 있는지 확인"""
+        if not cell or not hasattr(cell, 'border'):
+            return False
+        
+        border = cell.border
+        if not border:
+            return False
+        
+        # 상하좌우 중 하나라도 테두리가 있으면 True
+        return bool(
+            border.top and border.top.style is not None or
+            border.bottom and border.bottom.style is not None or
+            border.left and border.left.style is not None or
+            border.right and border.right.style is not None
+        )
+    
+    @staticmethod
+    def _find_table_range_by_border(sheet) -> tuple:
+        """테두리를 기준으로 표 영역의 시작과 끝 행을 찾음"""
+        if sheet.max_row == 0:
+            return -1, -1
+        
+        table_start = -1
+        table_end = -1
+        
+        # 모든 행을 순회하며 테두리가 있는 행 찾기
+        for row_idx in range(1, sheet.max_row + 1):
+            has_border = False
+            
+            # 이 행에 테두리가 있는 셀이 있는지 확인
+            for col_idx in range(1, sheet.max_column + 1):
+                cell = sheet.cell(row=row_idx, column=col_idx)
+                if FileParser._has_cell_border(cell):
+                    has_border = True
+                    break
+            
+            if has_border:
+                if table_start == -1:
+                    table_start = row_idx
+                table_end = row_idx
+            elif table_start != -1:
+                # 테두리가 있는 행이 시작되었는데 현재 행에 테두리가 없으면 표 종료
+                break
+        
+        return table_start, table_end
+    
+    @staticmethod
     async def _extract_from_xlsx(file_content: bytes) -> List[Dict[str, Any]]:
-        """XLSX 파일에서 구조화된 셀 데이터 추출 (계층형 컬럼 지원)"""
+        """XLSX 파일에서 테두리 기반 표 영역만 추출 (계층형 컬럼 지원)"""
         try:
             xlsx_file = io.BytesIO(file_content)
-            workbook = load_workbook(xlsx_file, read_only=True, data_only=True)
+            # cellStyles=True 옵션으로 스타일 정보 포함하여 로드
+            workbook = load_workbook(xlsx_file, read_only=False, data_only=True)
             
             cell_data = []
             
@@ -565,14 +614,27 @@ class FileParser:
                 if sheet.max_row == 0:
                     continue
                 
-                # 첫 번째 행을 헤더로 저장
+                logger.info(f"시트 '{sheet_name}' 처리 중... (전체 행: {sheet.max_row})")
+                
+                # 테두리 기반으로 표 영역 찾기
+                table_start, table_end = FileParser._find_table_range_by_border(sheet)
+                
+                if table_start == -1 or table_end == -1:
+                    logger.warning(f"시트 '{sheet_name}'에서 테두리가 있는 표를 찾을 수 없습니다")
+                    continue
+                
+                logger.info(f"시트 '{sheet_name}'에서 표 영역 발견: 행 {table_start}~{table_end}")
+                
+                # 표 영역 내에서 헤더 추출 (표의 첫 번째 행)
                 headers = {}
-                first_row = list(sheet.iter_rows(min_row=1, max_row=1, values_only=True))[0]
+                first_row = list(sheet.iter_rows(min_row=table_start, max_row=table_start, values_only=True))[0]
                 for col_idx, header_value in enumerate(first_row, 1):
                     if header_value is not None:
                         headers[col_idx] = str(header_value).strip()
                     else:
                         headers[col_idx] = f"Column{col_idx}"
+                
+                logger.info(f"표 헤더: {headers}")
                 
                 # 고정 매핑 규칙 (항상 동일한 컬럼 순서 사용)
                 # 컬럼 순서: 구분1(1번째), 구분2(2번째), 구분3(3번째), 세부 내용(4번째), 비고(5번째)
@@ -587,8 +649,8 @@ class FileParser:
                 lvl2_value = None
                 lvl3_value = None
                 
-                # 2행부터 데이터 처리
-                for row_idx in range(2, sheet.max_row + 1):
+                # 표 영역 내에서만 데이터 처리 (table_start+1부터 table_end까지)
+                for row_idx in range(table_start + 1, table_end + 1):
                     row_values = list(sheet.iter_rows(min_row=row_idx, max_row=row_idx, values_only=True))[0]
                     
                     # 행 컨텍스트 생성 (같은 행의 모든 값들)
@@ -681,7 +743,7 @@ class FileParser:
             if not cell_data:
                 raise RuntimeError("XLSX에서 데이터를 추출할 수 없습니다")
             
-            logger.info(f"XLSX 셀 데이터 추출 완료: {len(cell_data)}개 셀 (계층형 컬럼 포함)")
+            logger.info(f"XLSX 셀 데이터 추출 완료: {len(cell_data)}개 셀 (테두리 기반 표 영역만, 계층형 컬럼 포함)")
             return cell_data
             
         except Exception as e:
