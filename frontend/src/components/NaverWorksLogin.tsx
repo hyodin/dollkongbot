@@ -89,8 +89,11 @@ const NaverWorksLogin: React.FC<NaverWorksLoginProps> = ({
     toast.success('로그아웃되었습니다');
   };
 
-  // 컴포넌트 마운트 시 토큰 확인
+  // 컴포넌트 마운트 시 토큰 확인 (이미 로그인되어 있으면 스킵)
   useEffect(() => {
+    // 이미 로그인되어 있으면 중복 체크 방지
+    if (isLoggedIn) return;
+    
     const checkAuthStatus = () => {
       const token = localStorage.getItem('naverworks_token');
       const userData = localStorage.getItem('naverworks_user');
@@ -108,7 +111,7 @@ const NaverWorksLogin: React.FC<NaverWorksLoginProps> = ({
     };
 
     checkAuthStatus();
-  }, [onLoginSuccess]);
+  }, [onLoginSuccess, isLoggedIn]);
 
   if (isLoggedIn && user) {
     return (

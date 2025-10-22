@@ -3,7 +3,7 @@
  * 한국어 문서 벡터 검색 시스템
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -128,7 +128,7 @@ function MainApp() {
   }, []);
 
   // 로그인 성공 처리
-  const handleLoginSuccess = (user: NaverWorksUser) => {
+  const handleLoginSuccess = useCallback((user: NaverWorksUser) => {
     const isAdminStr = localStorage.getItem('naverworks_is_admin');
     const adminStatus = isAdminStr === 'true';
     
@@ -137,10 +137,10 @@ function MainApp() {
     setIsAdmin(adminStatus);
     
     console.log('로그인 성공:', { user, isAdmin: adminStatus });
-  };
+  }, []); // 의존성 없음 - localStorage와 setState만 사용
 
   // 로그아웃 처리
-  const handleLogout = () => {
+  const handleLogout = useCallback(() => {
     setUser(undefined);
     setIsAdmin(false);
     setIsLoggedIn(false);
@@ -148,7 +148,7 @@ function MainApp() {
     localStorage.removeItem('naverworks_token');
     localStorage.removeItem('naverworks_is_admin');
     toast.success('로그아웃되었습니다');
-  };
+  }, []);
 
   // 문서 목록 로드
   const loadDocuments = async () => {

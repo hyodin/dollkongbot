@@ -31,6 +31,13 @@ interface ChatInterfaceProps {
   className?: string;
 }
 
+// FAQ 키워드 타입 (백엔드가 객체로 반환)
+interface FAQKeyword {
+  keyword: string;
+  visible?: boolean;
+  order?: number;
+}
+
 const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState('');
@@ -40,16 +47,21 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
   const [maxResults, setMaxResults] = useState(5);
   const [scoreThreshold, setScoreThreshold] = useState(0.1);
   
-  // FAQ 관련 상태
-  const [faqLevel1Keywords, setFaqLevel1Keywords] = useState<string[]>([]);
-  const [faqLevel2Keywords, setFaqLevel2Keywords] = useState<string[]>([]);
-  const [faqLevel3Questions, setFaqLevel3Questions] = useState<string[]>([]);
+  // FAQ 관련 상태 (백엔드가 객체 배열 또는 문자열 배열 반환 가능)
+  const [faqLevel1Keywords, setFaqLevel1Keywords] = useState<(string | FAQKeyword)[]>([]);
+  const [faqLevel2Keywords, setFaqLevel2Keywords] = useState<(string | FAQKeyword)[]>([]);
+  const [faqLevel3Questions, setFaqLevel3Questions] = useState<(string | FAQKeyword)[]>([]);
   const [selectedLevel1, setSelectedLevel1] = useState<string>('');
   const [selectedLevel2, setSelectedLevel2] = useState<string>('');
   const [isLoadingFAQ, setIsLoadingFAQ] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // 헬퍼 함수: 키워드 문자열 추출 (객체 또는 문자열 모두 처리)
+  const getKeywordString = (item: string | FAQKeyword): string => {
+    return typeof item === 'string' ? item : item.keyword;
+  };
 
   // 메시지 목록 끝으로 스크롤
   const scrollToBottom = () => {
@@ -85,7 +97,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
   };
 
   // lvl1 키워드 클릭 핸들러
-  const handleLevel1Click = async (keyword: string) => {
+  const handleLevel1Click = async (item: string | FAQKeyword) => {
+    const keyword = getKeywordString(item);
     try {
       setIsLoadingFAQ(true);
       setSelectedLevel1(keyword);
@@ -109,7 +122,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
   };
 
   // lvl2 키워드 클릭 핸들러
-  const handleLevel2Click = async (keyword: string) => {
+  const handleLevel2Click = async (item: string | FAQKeyword) => {
+    const keyword = getKeywordString(item);
     try {
       setIsLoadingFAQ(true);
       setSelectedLevel2(keyword);
@@ -130,7 +144,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
   };
 
   // lvl3 질문 클릭 핸들러
-  const handleLevel3Click = async (question: string) => {
+  const handleLevel3Click = async (item: string | FAQKeyword) => {
+    const question = getKeywordString(item);
     try {
       setIsLoadingFAQ(true);
       const response = await apiClient.getFAQAnswer(question);
@@ -392,7 +407,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
                         onClick={() => handleLevel3Click(question)}
                         className="px-4 py-2 text-left bg-green-50 hover:bg-green-100 rounded-lg border border-green-200 transition-colors whitespace-nowrap"
                       >
-                        {question}
+                        {getKeywordString(question)}
                       </button>
                     ))}
                   </div>
@@ -418,7 +433,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
                         onClick={() => handleLevel2Click(keyword)}
                         className="px-4 py-2 text-left bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition-colors whitespace-nowrap"
                       >
-                        {keyword}
+                        {getKeywordString(keyword)}
                       </button>
                     ))}
                   </div>
@@ -432,7 +447,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
                       onClick={() => handleLevel1Click(keyword)}
                       className="px-4 py-2 text-left bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition-colors whitespace-nowrap"
                     >
-                      {keyword}
+                      {getKeywordString(keyword)}
                     </button>
                   ))}
                 </div>
