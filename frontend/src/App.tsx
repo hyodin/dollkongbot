@@ -439,37 +439,41 @@ function MainApp() {
               <>
                 {/* 검색바 */}
                 <div className="card">
-                  <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                    🔍 문서 검색
-                  </h2>
-                  <SearchBar
-                    onSearch={handleSearch}
-                    onSearchStart={handleSearchStart}
-                    onSearchError={handleSearchError}
-                    autoFocus={true}
-                  />
+                  <div className="dollkong-fixed mx-auto px-6">
+                    <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                      🔍 문서 검색
+                    </h2>
+                    <SearchBar
+                      onSearch={handleSearch}
+                      onSearchStart={handleSearchStart}
+                      onSearchError={handleSearchError}
+                      autoFocus={true}
+                    />
+                  </div>
                 </div>
 
                 {/* 검색 결과 */}
                 <div className="card">
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-semibold text-gray-900">
-                      📋 검색 결과
-                    </h2>
-                    {currentQuery && (
-                      <div className="text-sm text-gray-500">
-                        "{currentQuery}" 검색 결과
-                        {processingTime > 0 && ` (${processingTime}초)`}
-                      </div>
-                    )}
-                  </div>
+                  <div className="dollkong-fixed mx-auto px-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h2 className="text-lg font-semibold text-gray-900">
+                        📋 검색 결과
+                      </h2>
+                      {currentQuery && (
+                        <div className="text-sm text-gray-500">
+                          "{currentQuery}" 검색 결과
+                          {processingTime > 0 && ` (${processingTime}초)`}
+                        </div>
+                      )}
+                    </div>
 
-                  <ResultList
-                    results={searchResults}
-                    query={currentQuery}
-                    isLoading={isSearching}
-                    onResultClick={handleResultClick}
-                  />
+                    <ResultList
+                      results={searchResults}
+                      query={currentQuery}
+                      isLoading={isSearching}
+                      onResultClick={handleResultClick}
+                    />
+                  </div>
                 </div>
               </>
             ) : (
