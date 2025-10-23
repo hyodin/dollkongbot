@@ -290,46 +290,19 @@ function MainApp() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
-                <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                </svg>
+              <div className="w-8 h-8 rounded-lg overflow-hidden flex items-center justify-center bg-gray-100">
+                <img src="/dollkong.png" alt="dollkong" className="w-8 h-8 object-contain" />
               </div>
               <div>
                 <h1 className="text-xl font-bold text-gray-900">
-                  한국어 문서 벡터 검색
+                  돌콩이에게 무엇이든 물어보세요!
                 </h1>
-                <p className="text-sm text-gray-500">
-                  KoSBERT + Qdrant + Gemini RAG 시스템
-                </p>
               </div>
             </div>
 
             {/* 통계 정보 및 로그인 */}
             <div className="flex items-center space-x-6">
-              {/* 통계 정보 */}
-              {stats && (
-                <div className="hidden md:flex items-center space-x-6 text-sm text-gray-600">
-                  <div className="text-center">
-                    <div className="font-medium text-gray-900">
-                      {stats.database_stats?.total_chunks || 0}
-                    </div>
-                    <div>총 청크</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="font-medium text-gray-900">
-                      {documents.length}
-                    </div>
-                    <div>문서 수</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="font-medium text-gray-900">
-                      {stats.model_info?.embedding_dim || 0}
-                    </div>
-                    <div>임베딩 차원</div>
-                  </div>
-                </div>
-              )}
+              {/* 사용자용 헤더 단순화: 통계 정보 제거 */}
               
               {/* 관리자 뱃지 */}
               {isLoggedIn && isAdmin && (
@@ -501,8 +474,10 @@ function MainApp() {
               </>
             ) : (
               /* RAG 채팅 인터페이스 */
-              <div className="flex-1 min-h-[600px]">
-                <ChatInterface className="h-full" />
+              <div className="card overflow-hidden">
+                <div className="h-[72vh] min-h-[640px]">
+                  <ChatInterface className="h-full" />
+                </div>
               </div>
             )}
           </div>
@@ -518,11 +493,6 @@ function MainApp() {
                 <img src="/dollkong.png" alt="돌콩이" />
               </div>
               <span>© 2025 돌콩이 AI 어시스턴트</span>
-            </div>
-            <div className="flex items-center space-x-3 text-xs text-gray-500">
-              <span className="bg-pink-100 px-2 py-1 rounded-full">🤖 Gemma-2-9B</span>
-              <span className="bg-purple-100 px-2 py-1 rounded-full">🔍 KoSBERT</span>
-              <span className="bg-blue-100 px-2 py-1 rounded-full">⚡ FastAPI + React</span>
             </div>
           </div>
         </div>

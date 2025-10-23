@@ -289,35 +289,38 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
     <div className={`dollkong-chat-container dollkong-bg-pattern ${className}`}>
       {/* 돌콩이 헤더 */}
       <div className="dollkong-header">
-        <div className="dollkong-avatar">
-          <img src="/dollkong.png" alt="돌콩이" />
-        </div>
-        <div className="flex-1">
-          <h2 className="text-lg font-bold">돌콩이 AI 어시스턴트</h2>
-          <p className="text-sm opacity-90">Gemma-2-9B + 문서 검색으로 정확한 답변을 제공해요!</p>
-        </div>
-        
-        <div className="flex items-center space-x-2">
-          <button
-            onClick={() => setShowSettings(!showSettings)}
-            className="p-2 text-white hover:bg-white hover:bg-opacity-20 rounded-full transition-colors"
-            title="설정"
-          >
-            ⚙️
-          </button>
-          <button
-            onClick={clearChat}
-            className="p-2 text-white hover:bg-white hover:bg-opacity-20 rounded-full transition-colors"
-            title="채팅 기록 삭제"
-          >
-            🗑️
-          </button>
+        <div className="dollkong-fixed mx-auto px-6 w-full flex items-center gap-3">
+          <div className="dollkong-avatar">
+            <img src="/dollkong.png" alt="돌콩이" />
+          </div>
+          <div className="flex-1">
+            <h2 className="text-lg font-bold">돌콩이 AI 어시스턴트</h2>
+            {/* subtitle removed for cleaner UI */}
+          </div>
+          
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setShowSettings(!showSettings)}
+              className="p-2 text-white hover:bg-white hover:bg-opacity-20 rounded-full transition-colors"
+              title="설정"
+            >
+              ⚙️
+            </button>
+            <button
+              onClick={clearChat}
+              className="p-2 text-white hover:bg-white hover:bg-opacity-20 rounded-full transition-colors"
+              title="채팅 기록 삭제"
+            >
+              🗑️
+            </button>
+          </div>
         </div>
       </div>
 
       {/* 돌콩이 설정 패널 */}
       {showSettings && (
         <div className="p-6 bg-gradient-to-r from-orange-50 to-blue-50 border-b border-orange-100">
+          <div className="dollkong-fixed mx-auto px-6">
           <div className="space-y-4">
             <div className="flex items-center space-x-3">
               <input
@@ -364,11 +367,13 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
               </div>
             )}
           </div>
+          </div>
         </div>
       )}
 
       {/* 돌콩이 메시지 목록 */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-4 dollkong-scrollbar">
+      <div className="flex-1 overflow-y-auto p-6 space-y-4 dollkong-scrollbar min-h-0">
+        <div className="dollkong-fixed mx-auto px-6">
         {messages.length === 0 ? (
           <div className="text-center text-gray-600 mt-12">
             <div className="dollkong-avatar mx-auto mb-6" style={{width: '80px', height: '80px'}}>
@@ -378,7 +383,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
             <p className="text-lg text-gray-600 mb-8">업로드된 사내규정 문서를 바탕으로 정확한 답변을 제공해드릴게요!</p>
             
             {/* FAQ 키워드 영역 */}
-            <div className="max-w-3xl mx-auto">
+            <div className="w-full dollkong-fixed mx-auto px-4">
               <p className="text-lg font-medium text-gray-700 mb-6">💡 사내규정 관련 궁금한 주제를 선택해보세요:</p>
               
               {isLoadingFAQ ? (
@@ -487,65 +492,16 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
               <div className={`dollkong-chat-bubble ${message.role}`}>
                 <div className="whitespace-pre-wrap">{message.content}</div>
                 
-                {/* Assistant 메시지의 추가 정보 */}
-                {message.role === 'assistant' && (
-                  <div className="mt-3 pt-3 border-t border-gray-300 border-opacity-30">
-                    {/* 처리 시간 */}
-                    {message.processing_time && (
-                      <div className="text-xs text-gray-600 mb-2">
-                        ⏱️ 처리 시간: {message.processing_time.total.toFixed(2)}초 
-                        (검색: {message.processing_time.search.toFixed(2)}초, 
-                        생성: {message.processing_time.generation.toFixed(2)}초)
-                      </div>
-                    )}
-                    
-                    {/* 토큰 사용량 */}
-                    {message.token_usage && (
-                      <div className="text-xs text-gray-600 mb-2">
-                        🔤 토큰: {message.token_usage.total_tokens}개 
-                        (입력: {message.token_usage.prompt_tokens}, 
-                        출력: {message.token_usage.completion_tokens})
-                      </div>
-                    )}
-                    
-                    {/* 참조 문서 */}
-                    {message.context_documents && message.context_documents.length > 0 && (
-                      <div className="mt-3">
-                        <div className="text-xs text-gray-700 mb-2">
-                          📚 참조 문서 ({message.context_documents.length}개):
-                        </div>
-                        <div className="space-y-2">
-                          {message.context_documents.map((doc, index) => (
-                            <div
-                              key={index}
-                              className="text-xs bg-white bg-opacity-60 p-3 rounded-lg border border-gray-200"
-                            >
-                              <div className="font-medium text-gray-800">
-                                📄 {doc.source}
-                              </div>
-                              <div className="text-gray-600 mt-1 line-clamp-2">
-                                {doc.text.substring(0, 100)}...
-                              </div>
-                              <div className="mt-2">
-                                <span className={`font-medium ${getScoreColor(doc.score)}`}>
-                                  관련도: {Math.round(doc.score * 100)}%
-                                </span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
+                {/* hidden debug details removed for end users */}
                 
-                <div className="text-xs text-gray-500 mt-2">
+                <div className="text-xs mt-2 ${message.role === 'user' ? 'text-white text-opacity-80' : 'text-gray-500'}">
                   {message.timestamp.toLocaleTimeString()}
                 </div>
               </div>
             </div>
           ))
         )}
+        </div>
         
         {/* 돌콩이 타이핑 인디케이터 */}
         {isLoading && (
@@ -568,7 +524,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
       </div>
 
       {/* 돌콩이 입력 영역 */}
-      <div className="p-6 bg-gradient-to-r from-orange-50 to-blue-50 border-t border-orange-100">
+      <div className="p-6 bg-gradient-to-r from-orange-50 to-blue-50 border-t border-orange-100 flex-shrink-0">
+        <div className="dollkong-fixed mx-auto px-6 w-full">
         <div className="flex space-x-3">
           <div className="dollkong-input-area flex-1">
             <textarea
@@ -591,18 +548,9 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
             {isLoading ? '⏳' : '💌'}
           </button>
         </div>
-        
-        {/* 돌콩이 상태 정보 */}
-        <div className="mt-4 flex items-center justify-center space-x-4 text-sm text-gray-600">
-          <div className="flex items-center space-x-2">
-            <div className="dollkong-avatar" style={{width: '24px', height: '24px'}}>
-              <img src="/dollkong.png" alt="돌콩이" />
-            </div>
-            <span>{useContext ? '🔍 문서 검색 활성화' : '💭 일반 채팅 모드'}</span>
-          </div>
-          <span>•</span>
-          <span>🤖 Gemma-2-9B</span>
         </div>
+        
+        {/* bottom status removed for cleaner UI */}
       </div>
     </div>
   );
