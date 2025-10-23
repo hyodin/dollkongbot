@@ -3,7 +3,7 @@
  * 한국어 문서 벡터 검색 시스템
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -33,10 +33,8 @@ function MainApp() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [currentQuery, setCurrentQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
   const [documents, setDocuments] = useState<DocumentInfo[]>([]);
   const [processingTime, setProcessingTime] = useState<number>(0);
-  const [stats, setStats] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'search' | 'chat'>('chat');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [user, setUser] = useState<NaverWorksUser | undefined>(undefined);
@@ -50,6 +48,32 @@ function MainApp() {
       const code = urlParams.get('code');
       const state = urlParams.get('state');
       const error = urlParams.get('error');
+
+      // OAuth 콜백이 아니고, 로그인되어 있지 않으면 자동으로 로그인 페이지로 리다이렉트
+      if (!code && !error) {
+        const token = localStorage.getItem('naverworks_token');
+        const userData = localStorage.getItem('naverworks_user');
+        
+        if (!token || !userData) {
+          // 로그인 기록이 없으면 바로 네이버웍스 로그인 페이지로 리다이렉트
+          const CLIENT_ID = 'KG7nswiEUqq3499jB5Ih';
+          const REDIRECT_URI = 'http://localhost:3000/';
+          const SCOPE = 'user.read';
+          
+          const params = new URLSearchParams({
+            client_id: CLIENT_ID,
+            redirect_uri: REDIRECT_URI,
+            response_type: 'code',
+            scope: SCOPE,
+            state: 'naverworks_auth'
+          });
+          
+          const authUrl = `https://auth.worksmobile.com/oauth2/v2.0/authorize?${params.toString()}`;
+          console.log('로그인 기록 없음, 네이버웍스 로그인 페이지로 리다이렉트...');
+          window.location.href = authUrl;
+          return;
+        }
+      }
 
       if (code && state === 'naverworks_auth') {
         try {
@@ -124,7 +148,6 @@ function MainApp() {
     handleOAuthCallback();
     checkAuthStatus();
     loadDocuments();
-    loadStats();
   }, []);
 
   // 로그인 성공 처리
@@ -162,29 +185,16 @@ function MainApp() {
     }
   };
 
-  // 통계 정보 로드
-  const loadStats = async () => {
-    try {
-      const response = await apiClient.getSearchStats();
-      if (response.status === 'success') {
-        setStats(response);
-      }
-    } catch (error) {
-      console.error('통계 로드 실패:', error);
-    }
-  };
 
   // 파일 업로드 성공 처리
   const handleUploadSuccess = (result: UploadResponse) => {
     console.log('업로드 성공:', result);
     // 문서 목록 새로고침
     loadDocuments();
-    loadStats();
   };
 
   // 파일 업로드 시작 처리
   const handleUploadStart = () => {
-    setIsUploading(true);
   };
 
   // 검색 실행 처리
@@ -220,64 +230,45 @@ function MainApp() {
       await apiClient.deleteDocument(fileId);
       toast.success('문서가 삭제되었습니다');
       loadDocuments();
-      loadStats();
     } catch (error: any) {
       toast.error(error.message || '문서 삭제에 실패했습니다');
     }
   };
 
-  // 로그인되지 않은 경우 로그인 화면 표시
+  // 로그인되지 않은 경우 로딩 화면 표시
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="max-w-md w-full space-y-8">
-          <div className="text-center">
-            <div className="w-16 h-16 mx-auto mb-4 bg-blue-100 rounded-full flex items-center justify-center">
-              <svg className="w-8 h-8 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-              </svg>
-            </div>
-            <h2 className="text-3xl font-bold text-gray-900 mb-2">
-              한국어 문서 벡터 검색 시스템
-            </h2>
-            <p className="text-gray-600 mb-8">
-              KoSBERT + Qdrant + Gemini RAG 시스템
-            </p>
+      <div className="min-h-screen bg-gradient-to-br from-orange-50 via-blue-50 to-purple-50 flex items-center justify-center">
+        <div className="text-center">
+          {/* 돌콩이 이미지 */}
+          <div className="w-32 h-32 mx-auto mb-8 bg-gradient-to-r from-orange-400 to-blue-500 rounded-full flex items-center justify-center shadow-xl animate-pulse">
+            <img src="/dollkong.png" alt="돌콩이" className="w-28 h-28 object-contain" />
           </div>
+          
+          {/* 로딩 메시지 */}
+          <h2 className="text-4xl font-bold text-gray-900 mb-4">
+            잠시만 기다려주세요
+          </h2>
+          <p className="text-lg text-gray-600 mb-8">
+            로그인 페이지로 이동합니다...
+          </p>
 
-          <div className="bg-white py-8 px-6 shadow-lg rounded-lg">
-            <div className="text-center mb-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                로그인이 필요합니다
-              </h3>
-              <p className="text-gray-600">
-                네이버웍스 계정으로 로그인하여 서비스를 이용하세요
-              </p>
-            </div>
-
-            <div className="flex justify-center">
-              <NaverWorksLogin
-                onLoginSuccess={handleLoginSuccess}
-                onLogout={handleLogout}
-                isLoggedIn={isLoggedIn}
-                user={user}
-              />
-            </div>
-
-            <div className="mt-6 text-center">
-              <p className="text-sm text-gray-500">
-                로그인 후 문서 업로드, 검색, RAG 채팅 기능을 이용할 수 있습니다
-              </p>
-            </div>
+          {/* 로딩 애니메이션 */}
+          <div className="flex justify-center space-x-2">
+            <div className="w-3 h-3 bg-orange-500 rounded-full animate-bounce" style={{animationDelay: '0s'}}></div>
+            <div className="w-3 h-3 bg-blue-500 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+            <div className="w-3 h-3 bg-purple-500 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
           </div>
-
-          <div className="text-center">
-            <div className="flex items-center justify-center space-x-6 text-sm text-gray-500">
-              <span>KoSBERT + Qdrant + Gemini</span>
-              <span>•</span>
-              <span>FastAPI + React</span>
-            </div>
-          </div>
+        </div>
+        
+        {/* NaverWorksLogin 컴포넌트 (숨김) */}
+        <div className="hidden">
+          <NaverWorksLogin
+            onLoginSuccess={handleLoginSuccess}
+            onLogout={handleLogout}
+            isLoggedIn={isLoggedIn}
+            user={user}
+          />
         </div>
       </div>
     );
