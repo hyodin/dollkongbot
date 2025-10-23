@@ -35,7 +35,8 @@ function MainApp() {
   const [isSearching, setIsSearching] = useState(false);
   const [documents, setDocuments] = useState<DocumentInfo[]>([]);
   const [processingTime, setProcessingTime] = useState<number>(0);
-  const [activeTab, setActiveTab] = useState<'search' | 'chat'>('chat');
+  const [activeTab, setActiveTab] = useState<'search' | 'chat' | 'admin'>('chat');
+  const [adminSubTab, setAdminSubTab] = useState<'documents' | 'faq'>('documents');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [user, setUser] = useState<NaverWorksUser | undefined>(undefined);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -296,7 +297,10 @@ function MainApp() {
               {/* 탭 네비게이션 */}
               <div className="flex border border-gray-200 rounded-lg overflow-hidden">
                 <button
-                  onClick={() => setActiveTab('chat')}
+                  onClick={() => {
+                    setActiveTab('chat');
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
                   className={`px-4 py-2 text-sm font-medium transition-colors ${
                     activeTab === 'chat'
                       ? 'bg-blue-500 text-white'
@@ -308,7 +312,6 @@ function MainApp() {
                 <button
                   onClick={() => {
                     setActiveTab('search');
-                    // 문서 검색 탭으로 이동 시 페이지 상단으로 스크롤
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
                   className={`px-4 py-2 text-sm font-medium transition-colors ${
@@ -319,6 +322,23 @@ function MainApp() {
                 >
                   🔍 문서 검색
                 </button>
+                
+                {/* 관리자 전용: 관리자 탭 */}
+                {isLoggedIn && isAdmin && (
+                  <button
+                    onClick={() => {
+                      setActiveTab('admin');
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                    className={`px-4 py-2 text-sm font-medium transition-colors ${
+                      activeTab === 'admin'
+                        ? 'bg-purple-500 text-white'
+                        : 'bg-white text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    ⚙️ 관리자
+                  </button>
+                )}
               </div>
               
               {/* 관리자 뱃지 */}
@@ -326,22 +346,6 @@ function MainApp() {
                 <div className="px-3 py-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs font-bold rounded-full shadow-lg">
                   👑 ADMIN
                 </div>
-              )}
-              
-              {/* 관리자 영역 버튼 */}
-              {isLoggedIn && isAdmin && (
-                <button
-                  onClick={() => {
-                    window.history.pushState({}, '', '/admin');
-                    window.location.reload();
-                  }}
-                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium text-sm flex items-center space-x-2"
-                >
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd"/>
-                  </svg>
-                  <span>FAQ 관리</span>
-                </button>
               )}
               
               {/* 네이버웍스 로그인 */}
@@ -358,126 +362,158 @@ function MainApp() {
 
       {/* 메인 컨텐츠 */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-0 pb-8 flex-1 flex flex-col">
-        <div className={`grid grid-cols-1 gap-8 flex-1 ${isAdmin ? 'lg:grid-cols-3' : ''}`}>
-          {/* 좌측: 파일 업로드 및 문서 목록 (관리자 전용) */}
-          {isAdmin && (
-            <div className="lg:col-span-1 space-y-6">
-              {/* 파일 업로드 */}
-              <div className="card">
+        {/* 탭 컨텐츠 */}
+        {activeTab === 'admin' ? (
+          /* 관리자 탭 */
+          <div className="flex flex-col h-full">
+            {/* 서브 탭 네비게이션 (고정) */}
+            <div className="flex border-b border-gray-200 bg-white sticky top-16 z-40">
+              <button
+                onClick={() => setAdminSubTab('documents')}
+                className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                  adminSubTab === 'documents'
+                    ? 'border-purple-500 text-purple-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                📁 문서 관리
+              </button>
+              <button
+                onClick={() => setAdminSubTab('faq')}
+                className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                  adminSubTab === 'faq'
+                    ? 'border-purple-500 text-purple-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                💬 FAQ 관리
+              </button>
+            </div>
+
+            {/* 서브 탭 컨텐츠 */}
+            <div className="flex-1 mt-6">
+              {adminSubTab === 'documents' ? (
+              /* 문서 관리 */
+              <div className="w-full">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  {/* 파일 업로드 */}
+                  <div className="card">
+                  <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                    📁 파일 업로드
+                  </h2>
+                  <FileUpload
+                    onUploadSuccess={handleUploadSuccess}
+                    onUploadStart={handleUploadStart}
+                  />
+                </div>
+
+                {/* 문서 목록 */}
+                <div className="card">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-semibold text-gray-900">
+                      📚 업로드된 문서
+                    </h2>
+                    <button
+                      onClick={loadDocuments}
+                      className="text-sm text-primary-600 hover:text-primary-700"
+                    >
+                      새로고침
+                    </button>
+                  </div>
+
+                  {documents.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <svg className="w-12 h-12 mx-auto mb-2 text-gray-300" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+                      </svg>
+                      <p className="text-sm">업로드된 문서가 없습니다</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3 max-h-96 overflow-y-auto">
+                      {documents.map((doc) => (
+                        <div key={doc.file_id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-sm font-medium text-gray-900 truncate">
+                              {doc.file_name}
+                            </h3>
+                            <p className="text-xs text-gray-500">
+                              {doc.chunk_count}개 청크 • {new Date(doc.upload_time).toLocaleDateString('ko-KR')}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => handleDeleteDocument(doc.file_id)}
+                            className="ml-2 text-red-500 hover:text-red-700 p-1"
+                            title="문서 삭제"
+                          >
+                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd"/>
+                            </svg>
+                          </button>
+                        </div>
+                      ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              ) : (
+                /* FAQ 관리 */
+                <div className="w-full">
+                  <AdminPage />
+                </div>
+              )}
+            </div>
+          </div>
+        ) : activeTab === 'search' ? (
+          /* 문서 검색 탭 */
+          <div>
+            {/* 검색바 */}
+            <div className="card">
+              <div className="dollkong-fixed mx-auto px-6">
                 <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                  📁 파일 업로드
+                  🔍 문서 검색
                 </h2>
-                <FileUpload
-                  onUploadSuccess={handleUploadSuccess}
-                  onUploadStart={handleUploadStart}
+                <SearchBar
+                  onSearch={handleSearch}
+                  onSearchStart={handleSearchStart}
+                  onSearchError={handleSearchError}
+                  autoFocus={true}
                 />
               </div>
+            </div>
 
-              {/* 문서 목록 */}
-              <div className="card">
+            {/* 검색 결과 */}
+            <div className="card">
+              <div className="dollkong-fixed mx-auto px-6">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-lg font-semibold text-gray-900">
-                    📚 업로드된 문서
+                    📋 검색 결과
                   </h2>
-                  <button
-                    onClick={loadDocuments}
-                    className="text-sm text-primary-600 hover:text-primary-700"
-                  >
-                    새로고침
-                  </button>
+                  {currentQuery && (
+                    <div className="text-sm text-gray-500">
+                      "{currentQuery}" 검색 결과
+                      {processingTime > 0 && ` (${processingTime}초)`}
+                    </div>
+                  )}
                 </div>
 
-                {documents.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    <svg className="w-12 h-12 mx-auto mb-2 text-gray-300" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
-                    </svg>
-                    <p className="text-sm">업로드된 문서가 없습니다</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3 max-h-64 overflow-y-auto">
-                    {documents.map((doc) => (
-                      <div key={doc.file_id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-sm font-medium text-gray-900 truncate">
-                            {doc.file_name}
-                          </h3>
-                          <p className="text-xs text-gray-500">
-                            {doc.chunk_count}개 청크 • {new Date(doc.upload_time).toLocaleDateString('ko-KR')}
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => handleDeleteDocument(doc.file_id)}
-                          className="ml-2 text-red-500 hover:text-red-700 p-1"
-                          title="문서 삭제"
-                        >
-                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd"/>
-                          </svg>
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <ResultList
+                  results={searchResults}
+                  query={currentQuery}
+                  isLoading={isSearching}
+                  onResultClick={handleResultClick}
+                />
               </div>
             </div>
-          )}
-
-          {/* 우측: 검색/채팅 탭 */}
-          <div className={`space-y-6 flex flex-col ${isAdmin ? 'lg:col-span-2' : ''}`}>
-
-            {/* 탭 컨텐츠 */}
-            {activeTab === 'search' ? (
-              <div>
-                {/* 검색바 */}
-                <div className="card">
-                  <div className="dollkong-fixed mx-auto px-6">
-                    <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                      🔍 문서 검색
-                    </h2>
-                    <SearchBar
-                      onSearch={handleSearch}
-                      onSearchStart={handleSearchStart}
-                      onSearchError={handleSearchError}
-                      autoFocus={true}
-                    />
-                  </div>
-                </div>
-
-                {/* 검색 결과 */}
-                <div className="card">
-                  <div className="dollkong-fixed mx-auto px-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <h2 className="text-lg font-semibold text-gray-900">
-                        📋 검색 결과
-                      </h2>
-                      {currentQuery && (
-                        <div className="text-sm text-gray-500">
-                          "{currentQuery}" 검색 결과
-                          {processingTime > 0 && ` (${processingTime}초)`}
-                        </div>
-                      )}
-                    </div>
-
-                    <ResultList
-                      results={searchResults}
-                      query={currentQuery}
-                      isLoading={isSearching}
-                      onResultClick={handleResultClick}
-                    />
-                  </div>
-                </div>
-              </div>
-            ) : (
-              /* RAG 채팅 인터페이스 */
-              <div className="card overflow-hidden">
-                <div className="h-[calc(100vh-200px)] min-h-[500px]">
-                  <ChatInterface className="h-full" />
-                </div>
-              </div>
-            )}
           </div>
-        </div>
+        ) : (
+          /* RAG 채팅 탭 */
+          <div className="card overflow-hidden">
+            <div className="h-[calc(100vh-200px)] min-h-[500px]">
+              <ChatInterface className="h-full" />
+            </div>
+          </div>
+        )}
       </main>
 
       {/* 돌콩이 푸터 */}
