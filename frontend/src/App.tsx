@@ -238,11 +238,11 @@ function MainApp() {
   // 로그인되지 않은 경우 로딩 화면 표시
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-orange-50 via-blue-50 to-purple-50 flex items-center justify-center">
+      <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center">
           {/* 돌콩이 이미지 */}
-          <div className="w-32 h-32 mx-auto mb-8 bg-gradient-to-r from-orange-400 to-blue-500 rounded-full flex items-center justify-center shadow-xl animate-pulse">
-            <img src="/dollkong.png" alt="돌콩이" className="w-28 h-28 object-contain" />
+          <div className="w-64 h-64 mx-auto mb-8 flex items-center justify-center animate-pulse">
+            <img src="/dollkong.png" alt="돌콩이" className="w-64 h-64 object-contain" />
           </div>
           
           {/* 로딩 메시지 */}
