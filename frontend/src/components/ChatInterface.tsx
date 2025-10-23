@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { toast } from 'react-toastify';
-import apiClient, { FAQResponse, FAQAnswerResponse } from '../api/client';
+import apiClient from '../api/client';
 
 interface ChatMessage {
   id: string;
@@ -54,6 +54,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
   const [selectedLevel1, setSelectedLevel1] = useState<string>('');
   const [selectedLevel2, setSelectedLevel2] = useState<string>('');
   const [isLoadingFAQ, setIsLoadingFAQ] = useState(false);
+  const [showFAQ, setShowFAQ] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -158,6 +159,9 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
           timestamp: new Date()
         };
         setMessages(prev => [...prev, assistantMessage]);
+        
+        // FAQ 패널 닫기 (채팅 중 FAQ 사용 시)
+        setShowFAQ(false);
         
         // FAQ 상태 초기화
         setFaqLevel1Keywords([]);
@@ -278,13 +282,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
     toast.info('채팅 기록이 삭제되었습니다.');
   };
 
-  // 점수 색상 결정
-  const getScoreColor = (score: number) => {
-    if (score >= 0.7) return 'text-green-600';
-    if (score >= 0.5) return 'text-yellow-600';
-    return 'text-red-600';
-  };
-
   return (
     <div className={`dollkong-chat-container dollkong-bg-pattern ${className}`}>
       {/* 돌콩이 헤더 */}
@@ -299,6 +296,25 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
           </div>
           
           <div className="flex items-center space-x-2">
+            <button
+              onClick={() => {
+                setShowFAQ(!showFAQ);
+                if (!showFAQ) {
+                  // FAQ 패널 열 때마다 lvl1 키워드로 초기화
+                  setFaqLevel2Keywords([]);
+                  setFaqLevel3Questions([]);
+                  setSelectedLevel1('');
+                  setSelectedLevel2('');
+                  if (faqLevel1Keywords.length === 0) {
+                    loadFAQLevel1Keywords();
+                  }
+                }
+              }}
+              className="p-2 text-white hover:bg-white hover:bg-opacity-20 rounded-full transition-colors"
+              title="FAQ 보기"
+            >
+              💡
+            </button>
             <button
               onClick={() => setShowSettings(!showSettings)}
               className="p-2 text-white hover:bg-white hover:bg-opacity-20 rounded-full transition-colors"
@@ -367,6 +383,117 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
               </div>
             )}
           </div>
+          </div>
+        </div>
+      )}
+
+      {/* FAQ 패널 (채팅 중에도 표시 가능) */}
+      {showFAQ && (
+        <div className="p-6 bg-gradient-to-r from-purple-50 to-pink-50 border-b border-purple-100">
+          <div className="dollkong-fixed mx-auto px-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-gray-800">💡 자주 묻는 질문 (FAQ)</h3>
+              <button
+                onClick={() => setShowFAQ(false)}
+                className="p-2 text-gray-600 hover:bg-white hover:bg-opacity-50 rounded-full transition-colors"
+                title="FAQ 닫기"
+              >
+                ✕
+              </button>
+            </div>
+            
+            {isLoadingFAQ ? (
+              <div className="flex justify-center items-center py-8">
+                <div className="dollkong-typing-indicator">
+                  <div className="dollkong-avatar">
+                    <img src="/dollkong.png" alt="돌콩이" />
+                  </div>
+                  <span>FAQ를 불러오는 중...</span>
+                  <div className="dollkong-typing-dots">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                  </div>
+                </div>
+              </div>
+            ) : faqLevel3Questions.length > 0 ? (
+              // lvl3 질문 목록 표시
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-lg font-medium text-gray-700">
+                    {selectedLevel2} 관련 질문
+                  </p>
+                  <button
+                    onClick={resetToLevel2}
+                    className="dollkong-faq-button text-sm"
+                  >
+                    ← 뒤로가기
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  {faqLevel3Questions.map((question, index) => (
+                    <button
+                      key={index}
+                      onClick={() => {
+                        const questionStr = getKeywordString(question);
+                        setInputMessage(questionStr);
+                        setShowFAQ(false);
+                        inputRef.current?.focus();
+                      }}
+                      className="dollkong-faq-button text-base px-6 py-3"
+                    >
+                      {getKeywordString(question)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : faqLevel2Keywords.length > 0 ? (
+              // lvl2 키워드 목록 표시
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-lg font-medium text-gray-700">
+                    {selectedLevel1} 하위 키워드
+                  </p>
+                  <button
+                    onClick={resetToLevel1}
+                    className="dollkong-faq-button text-sm"
+                  >
+                    ← 뒤로가기
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  {faqLevel2Keywords.map((keyword, index) => (
+                    <button
+                      key={index}
+                      onClick={() => handleLevel2Click(keyword)}
+                      className="dollkong-faq-button text-base px-6 py-3"
+                    >
+                      {getKeywordString(keyword)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : faqLevel1Keywords.length > 0 ? (
+              // lvl1 키워드 목록 표시
+              <div className="flex flex-wrap gap-3 justify-center">
+                {faqLevel1Keywords.map((keyword, index) => (
+                  <button
+                    key={index}
+                    onClick={() => handleLevel1Click(keyword)}
+                    className="dollkong-faq-button text-lg px-8 py-4"
+                  >
+                    {getKeywordString(keyword)}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <div className="dollkong-avatar mx-auto mb-4">
+                  <img src="/dollkong.png" alt="돌콩이" />
+                </div>
+                <p className="text-gray-500 text-lg">등록된 FAQ가 없어요 😅</p>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -465,15 +592,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
                     </button>
                   ))}
                 </div>
-              ) : (
-                // FAQ가 없을 때
-                <div className="text-center py-8">
-                  <div className="dollkong-avatar mx-auto mb-4">
-                    <img src="/dollkong.png" alt="돌콩이" />
-                  </div>
-                  <p className="text-gray-500 text-lg">등록된 FAQ가 없어요 😅</p>
-                </div>
-              )}
+              ) : null}
             </div>
           </div>
         ) : (

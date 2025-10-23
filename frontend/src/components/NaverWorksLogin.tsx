@@ -125,8 +125,8 @@ const NaverWorksLogin: React.FC<NaverWorksLoginProps> = ({
               className="w-8 h-8 rounded-full"
             />
           ) : (
-            <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
-              <span className="text-white text-sm font-medium">
+            <div className="w-8 h-8 bg-yellow-400 rounded-full flex items-center justify-center">
+              <span className="text-gray-900 text-sm font-medium">
                 {(() => {
                   if (user.name && typeof user.name === 'string') {
                     return user.name.charAt(0).toUpperCase();

@@ -303,7 +303,7 @@ function MainApp() {
                   }}
                   className={`px-4 py-2 text-sm font-medium transition-colors ${
                     activeTab === 'chat'
-                      ? 'bg-blue-500 text-white'
+                      ? 'bg-yellow-400 text-gray-900'
                       : 'bg-white text-gray-700 hover:bg-gray-50'
                   }`}
                 >
@@ -316,7 +316,7 @@ function MainApp() {
                   }}
                   className={`px-4 py-2 text-sm font-medium transition-colors ${
                     activeTab === 'search'
-                      ? 'bg-blue-500 text-white'
+                      ? 'bg-yellow-400 text-gray-900'
                       : 'bg-white text-gray-700 hover:bg-gray-50'
                   }`}
                 >
@@ -332,7 +332,7 @@ function MainApp() {
                     }}
                     className={`px-4 py-2 text-sm font-medium transition-colors ${
                       activeTab === 'admin'
-                        ? 'bg-purple-500 text-white'
+                        ? 'bg-yellow-400 text-gray-900'
                         : 'bg-white text-gray-700 hover:bg-gray-50'
                     }`}
                   >
@@ -340,13 +340,6 @@ function MainApp() {
                   </button>
                 )}
               </div>
-              
-              {/* 관리자 뱃지 */}
-              {isLoggedIn && isAdmin && (
-                <div className="px-3 py-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs font-bold rounded-full shadow-lg">
-                  👑 ADMIN
-                </div>
-              )}
               
               {/* 네이버웍스 로그인 */}
               <NaverWorksLogin
