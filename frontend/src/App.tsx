@@ -286,7 +286,7 @@ function MainApp() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* 헤더 */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
+      <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-3">
@@ -300,9 +300,35 @@ function MainApp() {
               </div>
             </div>
 
-            {/* 통계 정보 및 로그인 */}
+            {/* 탭 네비게이션 및 로그인 */}
             <div className="flex items-center space-x-6">
-              {/* 사용자용 헤더 단순화: 통계 정보 제거 */}
+              {/* 탭 네비게이션 */}
+              <div className="flex border border-gray-200 rounded-lg overflow-hidden">
+                <button
+                  onClick={() => setActiveTab('chat')}
+                  className={`px-4 py-2 text-sm font-medium transition-colors ${
+                    activeTab === 'chat'
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-white text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  🤖 RAG 채팅
+                </button>
+                <button
+                  onClick={() => {
+                    setActiveTab('search');
+                    // 문서 검색 탭으로 이동 시 페이지 상단으로 스크롤
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  className={`px-4 py-2 text-sm font-medium transition-colors ${
+                    activeTab === 'search'
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-white text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  🔍 문서 검색
+                </button>
+              </div>
               
               {/* 관리자 뱃지 */}
               {isLoggedIn && isAdmin && (
@@ -340,7 +366,7 @@ function MainApp() {
       </header>
 
       {/* 메인 컨텐츠 */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 flex flex-col">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-0 pb-8 flex-1 flex flex-col">
         <div className={`grid grid-cols-1 gap-8 flex-1 ${isAdmin ? 'lg:grid-cols-3' : ''}`}>
           {/* 좌측: 파일 업로드 및 문서 목록 (관리자 전용) */}
           {isAdmin && (
@@ -408,35 +434,10 @@ function MainApp() {
 
           {/* 우측: 검색/채팅 탭 */}
           <div className={`space-y-6 flex flex-col ${isAdmin ? 'lg:col-span-2' : ''}`}>
-            {/* 탭 네비게이션 */}
-            <div className="card">
-              <div className="flex border-b border-gray-200">
-              <button
-                  onClick={() => setActiveTab('chat')}
-                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                    activeTab === 'chat'
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  🤖 RAG 채팅
-                </button>
-                <button
-                  onClick={() => setActiveTab('search')}
-                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                    activeTab === 'search'
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  🔍 문서 검색
-                </button>
-              </div>
-            </div>
 
             {/* 탭 컨텐츠 */}
             {activeTab === 'search' ? (
-              <>
+              <div>
                 {/* 검색바 */}
                 <div className="card">
                   <div className="dollkong-fixed mx-auto px-6">
@@ -475,11 +476,11 @@ function MainApp() {
                     />
                   </div>
                 </div>
-              </>
+              </div>
             ) : (
               /* RAG 채팅 인터페이스 */
               <div className="card overflow-hidden">
-                <div className="h-[72vh] min-h-[640px]">
+                <div className="h-[calc(100vh-200px)] min-h-[500px]">
                   <ChatInterface className="h-full" />
                 </div>
               </div>
