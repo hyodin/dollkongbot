@@ -118,6 +118,7 @@ export interface FAQAnswerResponse {
 export interface EmailRequest {
   subject: string;
   content: string;
+  recipient_email: string;
   user_question: string;
   chat_response: string;
   chat_history: Array<{

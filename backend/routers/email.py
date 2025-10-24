@@ -27,6 +27,7 @@ class EmailRequest(BaseModel):
     """이메일 발송 요청 모델"""
     subject: str = Field(..., description="메일 제목", min_length=1, max_length=200)
     content: str = Field(..., description="메일 본문", min_length=1, max_length=5000)
+    recipient_email: str = Field(..., description="수신자 이메일 주소", min_length=1, max_length=200)
     user_question: str = Field(..., description="사용자 원본 질문")
     chat_response: str = Field(..., description="챗봇 응답")
     chat_history: List[Dict[str, Any]] = Field(default=[], description="대화 히스토리")
@@ -96,7 +97,9 @@ async def send_inquiry_email(request: EmailRequest):
         result = email_service.send_inquiry_email(
             user_question=request.user_question,
             chat_response=request.chat_response,
-            additional_content=request.content
+            additional_content=request.content,
+            recipient_email=request.recipient_email,
+            subject=request.subject
         )
         
         if result["success"]:
@@ -263,6 +266,7 @@ async def test_email_sending():
         test_request = EmailRequest(
             subject="[테스트] 네이버웍스 챗봇 문의 메일 발송 테스트",
             content="이것은 네이버웍스 이메일 시스템을 통한 실제 테스트 메일입니다.",
+            recipient_email=email_service.admin_email,
             user_question="테스트 질문입니다.",
             chat_response="테스트 응답입니다."
         )

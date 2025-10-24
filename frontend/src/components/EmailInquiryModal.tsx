@@ -56,33 +56,48 @@ const EmailInquiryModal: React.FC<EmailInquiryModalProps> = ({
     const autoSubject = `[챗봇 문의] ${userQuestion.length > 30 ? userQuestion.substring(0, 30) + '...' : userQuestion}`;
     setSubject(autoSubject);
 
-    // 내용 자동 생성 (대화 맥락 포함)
+    // 내용 자동 생성 (새로운 템플릿 형식)
     const currentTime = new Date().toLocaleString('ko-KR');
-    let autoContent = `안녕하세요.
+    let autoContent = `================================
+📋 사규 챗봇 문의 접수
+================================
 
-챗봇이 답변을 찾지 못한 질문에 대해 문의드립니다.
+안녕하세요.  
+챗봇이 답변을 찾지 못한 문의가 접수되었습니다.
 
 ▶ 문의 일시: ${currentTime}
-▶ 사용자 질문: ${userQuestion}
-▶ 챗봇 응답: ${chatResponse}
 
-`;
+--------------------------------
+💬 대화 기록
+--------------------------------`;
 
     // 최근 대화 히스토리 추가 (최근 5개 메시지)
     if (chatHistory && chatHistory.length > 0) {
-      autoContent += '▶ 대화 맥락:\n';
       const recentHistory = chatHistory.slice(-5);
       recentHistory.forEach((msg, index) => {
         const role = msg.role === 'user' ? '사용자' : '챗봇';
-        const content = msg.content.length > 100 ? msg.content.substring(0, 100) + '...' : msg.content;
-        autoContent += `${index + 1}. [${role}] ${content}\n`;
+        const content = msg.content;
+        autoContent += `\n${index + 1}️⃣ [${role}] ${content}`;
       });
-      autoContent += '\n';
+    } else {
+      // 대화 히스토리가 없는 경우 현재 질문과 응답만 표시
+      autoContent += `\n1️⃣ [사용자] ${userQuestion}`;
+      autoContent += `\n2️⃣ [챗봇] ${chatResponse}`;
     }
 
-    autoContent += `추가로 궁금한 사항이 있으시면 언제든지 문의해 주세요.
+    autoContent += `
 
-감사합니다.`;
+--------------------------------
+📩 추가 문의
+--------------------------------
+추가로 궁금한 사항이 있으시면 언제든지 문의해 주세요.
+
+감사합니다.  
+사규 챗봇 드림 🤖
+================================
+※ 본 메일은 자동 발송되었습니다.
+※ 네이버웍스 메일 시스템을 통해 전송되었습니다.
+================================`;
 
     setContent(autoContent);
   };
@@ -114,6 +129,7 @@ const EmailInquiryModal: React.FC<EmailInquiryModalProps> = ({
       const emailRequest: EmailRequest = {
         subject: subject.trim(),
         content: content.trim(),
+        recipient_email: recipientEmail.trim(),
         user_question: userQuestion,
         chat_response: chatResponse,
         chat_history: chatHistory,

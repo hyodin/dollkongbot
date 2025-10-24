@@ -28,8 +28,8 @@ class NaverWorksEmailService:
         self.token_expires_at = None
         
         # 이메일 설정
-        self.admin_email = os.getenv("ADMIN_EMAIL", "bah0110@yncsmart.com")
-        self.sender_email = os.getenv("SENDER_EMAIL", "noreply@yncsmart.com")
+        self.admin_email = os.getenv("ADMIN_EMAIL", "")
+        self.sender_email = os.getenv("SENDER_EMAIL", "")
         
         logger.info("네이버웍스 이메일 서비스 초기화 완료 (OAuth 방식)")
     
@@ -181,7 +181,7 @@ class NaverWorksEmailService:
             return None
     
     
-    def send_inquiry_email(self, user_question: str, chat_response: str, additional_content: str = "") -> Dict[str, Any]:
+    def send_inquiry_email(self, user_question: str, chat_response: str, additional_content: str = "", recipient_email: str = None, subject: str = None) -> Dict[str, Any]:
         """사규 챗봇 문의 메일 발송 (OAuth 방식)"""
         try:
             # OAuth 토큰 확인
@@ -194,27 +194,11 @@ class NaverWorksEmailService:
                 }
             
             # 메일 템플릿 생성
-            subject = f"[챗봇 문의] {user_question[:50]}{'...' if len(user_question) > 50 else ''}"
+            if subject is None:
+                subject = f"[챗봇 문의] {user_question[:50]}{'...' if len(user_question) > 50 else ''}"
             
-            # 메일 본문 템플릿
-            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            body = f"""================================
-📋 사규 챗봇 문의
-================================
-
-▶ 문의 일시: {current_time}
-▶ 사용자 질문: 
-{user_question}
-
-▶ 챗봇 응답:
-{chat_response}
-
-▶ 추가 문의 내용:
-{additional_content}
-
-================================
-※ 본 메일은 사규 챗봇에서 자동 발송되었습니다.
-================================"""
+            # 메일 본문 (프론트엔드에서 전달받은 내용을 그대로 사용)
+            body = additional_content
             
             # 네이버웍스 메일 발송 API 엔드포인트 (공식 문서 기준)
             # 공식 문서: https://developers.worksmobile.com/kr/docs/mail-create
@@ -253,9 +237,20 @@ class NaverWorksEmailService:
             except Exception as e:
                 logger.warning(f"사용자 이름 가져오기 실패: {str(e)}")
             
+            # 수신자 이메일 설정 (파라미터가 없으면 기본값 사용)
+            to_email = recipient_email if recipient_email else self.admin_email
+            
+            # 수신자 이메일이 설정되지 않은 경우 오류 반환
+            if not to_email:
+                return {
+                    "success": False,
+                    "error": "수신자 이메일 주소가 설정되지 않았습니다.",
+                    "method": "naverworks_api"
+                }
+            
             # 네이버웍스 공식 문서에 따른 올바른 페이로드 구조
             payload = {
-                "to": self.admin_email,
+                "to": to_email,
                 "subject": subject,
                 "body": html_content,
                 "contentType": "html",
@@ -270,7 +265,7 @@ class NaverWorksEmailService:
             logger.info(f"공식 문서: https://developers.worksmobile.com/kr/docs/mail-create")
             logger.info(f"올바른 엔드포인트: POST /v1.0/users/{{userId}}/mail")
             logger.info(f"사용자 ID: {user_id}")
-            logger.info(f"발송자: {self.sender_email}, 수신자: {self.admin_email}")
+            logger.info(f"발송자: {self.sender_email}, 수신자: {to_email}")
             logger.info(f"제목: {subject}")
             logger.info(f"OAuth 토큰: {self.access_token[:20]}...")
             logger.info(f"페이로드: {payload}")
