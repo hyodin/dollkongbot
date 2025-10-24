@@ -23,6 +23,7 @@ NAVERWORKS_CLIENT_SECRET = os.getenv("NAVERWORKS_CLIENT_SECRET", "t8_Nud9m8z")
 # 네이버웍스 공식 토큰 교환 엔드포인트 (v2.0)
 NAVERWORKS_TOKEN_URL = os.getenv("NAVERWORKS_TOKEN_URL", "https://auth.worksmobile.com/oauth2/v2.0/token")
 NAVERWORKS_USER_INFO_URL = os.getenv("NAVERWORKS_USER_INFO_URL", "https://www.worksapis.com/v1.0/users/me")
+NAVERWORKS_USERS_SEARCH_URL = os.getenv("NAVERWORKS_USERS_SEARCH_URL", "https://www.worksapis.com/v1.0/users")
 
 # 네이버웍스 OAuth 설정 완료
 
@@ -350,3 +351,133 @@ async def verify_admin(authorization: Optional[str] = Header(None)) -> bool:
     except Exception as e:
         logger.error(f"권한 확인 중 오류: {str(e)}")
         raise HTTPException(status_code=500, detail="권한 확인 중 오류가 발생했습니다")
+
+
+class UserSearchRequest(BaseModel):
+    """구성원 검색 요청 모델"""
+    query: str
+    limit: int = 10
+
+class UserSearchResponse(BaseModel):
+    """구성원 검색 응답 모델"""
+    success: bool
+    users: list
+    message: str = ""
+
+@router.post("/naverworks/users/search")
+async def search_naverworks_users(
+    request: UserSearchRequest,
+    authorization: Optional[str] = Header(None)
+):
+    """
+    네이버웍스 구성원 검색 API
+    directory.read scope 필요
+    """
+    try:
+        # Authorization 헤더에서 토큰 추출
+        if not authorization or not authorization.startswith("Bearer "):
+            raise HTTPException(status_code=401, detail="인증 토큰이 필요합니다")
+        
+        access_token = authorization.split(" ")[1]
+        
+        # 네이버웍스 API 호출
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json"
+        }
+        
+        params = {
+            "query": request.query,
+            "limit": request.limit
+        }
+        
+        logger.info(f"네이버웍스 구성원 검색: '{request.query}' (limit={request.limit})")
+        
+        response = requests.get(
+            NAVERWORKS_USERS_SEARCH_URL,
+            headers=headers,
+            params=params,
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            logger.info(f"네이버웍스 API 원본 응답 구조 확인")
+            
+            # 네이버웍스 API 응답 구조 확인
+            users = data.get("users", [])
+            if not users:
+                # 다른 가능한 키들 확인
+                logger.info("'users' 키가 없음. 다른 키들 확인:")
+                for key, value in data.items():
+                    logger.info(f"  {key}: {type(value)} - {value}")
+                
+                # 네이버웍스 API는 다른 구조를 사용할 수 있음
+                # data 자체가 배열일 수도 있음
+                if isinstance(data, list):
+                    logger.info("응답 데이터가 배열입니다. 길이:", len(data))
+                    users = data
+                else:
+                    # 다른 가능한 키들 시도
+                    for possible_key in ['userList', 'members', 'items', 'results']:
+                        if possible_key in data:
+                            users = data[possible_key]
+                            logger.info(f"'{possible_key}' 키에서 사용자 목록 발견: {len(users)}명")
+                            break
+            
+            logger.info(f"사용자 목록 길이: {len(users)}")
+            
+            # 응답 데이터 정리
+            formatted_users = []
+            for user in users:
+                # 다양한 필드명 시도
+                email = user.get("email") or user.get("emailAddress") or user.get("email_address") or ""
+                name_raw = user.get("userName") or user.get("name") or user.get("displayName") or user.get("display_name") or ""
+                
+                # name이 객체인 경우 문자열로 변환
+                if isinstance(name_raw, dict):
+                    # 네이버웍스 API의 name 객체 구조 처리
+                    lastName = name_raw.get("lastName", "")
+                    firstName = name_raw.get("firstName", "")
+                    name = f"{lastName}{firstName}".strip()
+                else:
+                    name = name_raw
+                
+                # 이름이 없는 경우 이메일에서 사용자명 추출
+                if not name and email:
+                    # 이메일에서 @ 앞부분을 이름으로 사용
+                    name = email.split('@')[0]
+                
+                formatted_user = {
+                    "userId": user.get("userId") or user.get("id") or user.get("user_id") or "",
+                    "name": name,
+                    "email": email,
+                    "department": user.get("department") or user.get("dept") or "",
+                    "position": user.get("position") or user.get("title") or "",
+                    "profileImageUrl": user.get("profileImageUrl") or user.get("profile_image_url") or user.get("avatar") or ""
+                }
+                formatted_users.append(formatted_user)
+            
+            logger.info(f"구성원 검색 완료: {len(formatted_users)}명")
+            logger.info(f"정리된 사용자 데이터: {formatted_users[:3]}...")  # 처음 3명만 로그
+            
+            return UserSearchResponse(
+                success=True,
+                users=formatted_users,
+                message=f"{len(formatted_users)}명의 구성원을 찾았습니다"
+            )
+        else:
+            logger.error(f"네이버웍스 API 오류: {response.status_code} - {response.text}")
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=f"구성원 검색 실패: {response.text}"
+            )
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"구성원 검색 중 오류: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"구성원 검색 중 오류가 발생했습니다: {str(e)}"
+        )

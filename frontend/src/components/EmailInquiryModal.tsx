@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { toast } from 'react-toastify';
-import apiClient, { EmailRequest } from '../api/client';
+import Select, { MultiValue } from 'react-select';
+import apiClient, { EmailRequest, NaverworksUser, UserSearchResponse } from '../api/client';
 
 interface EmailInquiryModalProps {
   isOpen: boolean;
@@ -14,6 +15,14 @@ interface EmailInquiryModalProps {
   }>;
 }
 
+// 수신자 옵션 타입
+interface RecipientOption {
+  value: string;
+  label: string;
+  email: string;
+  user: NaverworksUser;
+}
+
 const EmailInquiryModal: React.FC<EmailInquiryModalProps> = ({
   isOpen,
   onClose,
@@ -22,6 +31,10 @@ const EmailInquiryModal: React.FC<EmailInquiryModalProps> = ({
   chatHistory
 }) => {
   const [recipientEmail, setRecipientEmail] = useState('');
+  const [selectedRecipients, setSelectedRecipients] = useState<RecipientOption[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<RecipientOption[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
   const [subject, setSubject] = useState('');
   const [content, setContent] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -48,6 +61,63 @@ const EmailInquiryModal: React.FC<EmailInquiryModalProps> = ({
       console.error('이메일 서비스 상태 확인 실패:', error);
       toast.error('이메일 서비스 상태를 확인할 수 없습니다.');
     }
+  };
+
+  // 네이버웍스 구성원 검색
+  const searchUsers = useCallback(async (query: string) => {
+    if (!query.trim() || query.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const response: UserSearchResponse = await apiClient.searchNaverworksUsers(query, 10);
+      
+      if (response.success) {
+        const options: RecipientOption[] = response.users.map(user => ({
+          value: user.userId,
+          label: user.name ? `${user.name} (${user.email})` : user.email,
+          email: user.email,
+          user: user
+        }));
+        setSearchResults(options);
+      } else {
+        setSearchResults([]);
+        toast.error('구성원 검색에 실패했습니다.');
+      }
+    } catch (error) {
+      console.error('구성원 검색 오류:', error);
+      setSearchResults([]);
+      toast.error('구성원 검색 중 오류가 발생했습니다.');
+    } finally {
+      setIsSearching(false);
+    }
+  }, []);
+
+  // 검색어 변경 시 디바운스 검색
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (searchQuery) {
+        searchUsers(searchQuery);
+      } else {
+        setSearchResults([]);
+      }
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery, searchUsers]);
+
+  // 수신자 선택 처리
+  const handleRecipientChange = (selectedOptions: MultiValue<RecipientOption>) => {
+    setSelectedRecipients(selectedOptions as RecipientOption[]);
+    setSearchQuery('');
+    setSearchResults([]);
+  };
+
+  // 수신자 제거
+  const removeRecipient = (userId: string) => {
+    setSelectedRecipients(prev => prev.filter(recipient => recipient.value !== userId));
   };
 
   // 메일 템플릿 자동 생성
@@ -104,8 +174,13 @@ const EmailInquiryModal: React.FC<EmailInquiryModalProps> = ({
 
   // 메일 발송
   const handleSendEmail = async () => {
-    if (!recipientEmail.trim()) {
-      toast.error('수신자 이메일을 입력해주세요.');
+    // 수신자 검증 (세미콜론으로 구분)
+    const recipients = selectedRecipients.length > 0 
+      ? selectedRecipients.map(r => r.email).join('; ')
+      : recipientEmail.trim();
+
+    if (!recipients) {
+      toast.error('수신자를 선택하거나 이메일을 입력해주세요.');
       return;
     }
 
@@ -129,7 +204,7 @@ const EmailInquiryModal: React.FC<EmailInquiryModalProps> = ({
       const emailRequest: EmailRequest = {
         subject: subject.trim(),
         content: content.trim(),
-        recipient_email: recipientEmail.trim(),
+        recipient_email: recipients,
         user_question: userQuestion,
         chat_response: chatResponse,
         chat_history: chatHistory,
@@ -183,19 +258,58 @@ const EmailInquiryModal: React.FC<EmailInquiryModalProps> = ({
 
         {/* 폼 내용 */}
         <div className="p-6 space-y-4">
-          {/* 수신자 이메일 */}
+          {/* 수신자 선택 */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              담당자 메일 (수신자) *
+              수신자 *
             </label>
-            <input
-              type="email"
-              value={recipientEmail}
-              onChange={(e) => setRecipientEmail(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="담당자 이메일 주소를 입력하세요"
-              disabled={isLoading}
-            />
+
+            {/* 수신자 검색 및 선택 */}
+            <div className="space-y-2">
+              <Select
+                isMulti
+                options={searchResults}
+                value={selectedRecipients}
+                onChange={handleRecipientChange}
+                onInputChange={setSearchQuery}
+                placeholder="구성원 검색 (이름 또는 이메일 입력)"
+                isLoading={isSearching}
+                isDisabled={isLoading}
+                noOptionsMessage={() => searchQuery.length < 2 ? "2글자 이상 입력해주세요" : "검색 결과가 없습니다"}
+                loadingMessage={() => "검색 중..."}
+                className="react-select-container"
+                classNamePrefix="react-select"
+                styles={{
+                  control: (base) => ({
+                    ...base,
+                    minHeight: '42px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '8px',
+                    '&:hover': {
+                      borderColor: '#3b82f6'
+                    }
+                  }),
+                  multiValue: (base) => ({
+                    ...base,
+                    backgroundColor: '#dbeafe',
+                    borderRadius: '6px'
+                  }),
+                  multiValueLabel: (base) => ({
+                    ...base,
+                    color: '#1e40af',
+                    fontWeight: '500'
+                  }),
+                  multiValueRemove: (base) => ({
+                    ...base,
+                    color: '#1e40af',
+                    '&:hover': {
+                      backgroundColor: '#93c5fd',
+                      color: '#1e3a8a'
+                    }
+                  })
+                }}
+              />
+            </div>
           </div>
 
           {/* 제목 */}
@@ -253,7 +367,7 @@ const EmailInquiryModal: React.FC<EmailInquiryModalProps> = ({
           </button>
           <button
             onClick={handleSendEmail}
-            disabled={isLoading || !recipientEmail.trim() || !subject.trim() || !content.trim()}
+            disabled={isLoading || (selectedRecipients.length === 0 && !recipientEmail.trim()) || !subject.trim() || !content.trim()}
             className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
           >
             {isLoading ? (

@@ -233,7 +233,17 @@ class NaverWorksEmailService:
                 user_response = requests.get(user_info_url, headers=user_headers, timeout=10)
                 if user_response.status_code == 200:
                     user_data = user_response.json()
-                    user_name = user_data.get("userName", "챗봇 시스템")
+                    # userName이 객체인 경우 문자열로 변환
+                    name_raw = user_data.get("userName", "챗봇 시스템")
+                    if isinstance(name_raw, dict):
+                        # 네이버웍스 API의 name 객체 구조 처리
+                        lastName = name_raw.get("lastName", "")
+                        firstName = name_raw.get("firstName", "")
+                        # lastName과 firstName을 조합 (빈 문자열도 포함)
+                        user_name = f"{lastName}{firstName}".strip() or "챗봇 시스템"
+                        logger.info(f"사용자 이름 변환: {name_raw} → '{user_name}'")
+                    else:
+                        user_name = name_raw
             except Exception as e:
                 logger.warning(f"사용자 이름 가져오기 실패: {str(e)}")
             
@@ -248,9 +258,22 @@ class NaverWorksEmailService:
                     "method": "naverworks_api"
                 }
             
+            # 다중 수신자 처리 (세미콜론으로 구분된 이메일 주소들)
+            if ';' in to_email:
+                # 세미콜론으로 구분된 이메일 주소들을 세미콜론 구분 문자열로 변환
+                to_emails = ';'.join([email.strip() for email in to_email.split(';') if email.strip()])
+            elif ',' in to_email:
+                # 콤마로 구분된 경우 세미콜론으로 변환
+                to_emails = ';'.join([email.strip() for email in to_email.split(',') if email.strip()])
+            else:
+                # 단일 이메일 주소
+                to_emails = to_email.strip()
+            
             # 네이버웍스 공식 문서에 따른 올바른 페이로드 구조
+            # 공식 문서: https://developers.worksmobile.com/kr/docs/mail-create
+            # 네이버웍스 API는 세미콜론 구분 문자열을 사용
             payload = {
-                "to": to_email,
+                "to": to_emails,  # 세미콜론 구분 문자열 형태
                 "subject": subject,
                 "body": html_content,
                 "contentType": "html",
@@ -261,11 +284,32 @@ class NaverWorksEmailService:
                 "attachments": []
             }
             
+            # 네이버웍스 API 문서에 따른 대안 페이로드 구조
+            # 일부 API 버전에서는 다른 필드명을 사용할 수 있음
+            alternative_payload = {
+                "recipients": to_emails,  # to 대신 recipients 사용
+                "subject": subject,
+                "content": html_content,  # body 대신 content 사용
+                "contentType": "html",
+                "senderName": user_name,  # userName 대신 senderName 사용
+                "saveSentMail": True,  # isSaveSentMail 대신 saveSentMail 사용
+                "saveTracking": True,  # isSaveTracking 대신 saveTracking 사용
+                "sendSeparately": False,  # isSendSeparately 대신 sendSeparately 사용
+                "attachments": []
+            }
+            
+            # 400 오류 디버깅을 위한 상세 로그
+            logger.info("=== 네이버웍스 API 요청 상세 정보 ===")
+            logger.info(f"URL: {url}")
+            logger.info(f"Headers: {headers}")
+            logger.info(f"Payload: {json.dumps(payload, ensure_ascii=False, indent=2)}")
+            logger.info("=== 요청 정보 끝 ===")
+            
             logger.info(f"네이버웍스 공식 API 메일 발송 시도: {url}")
             logger.info(f"공식 문서: https://developers.worksmobile.com/kr/docs/mail-create")
             logger.info(f"올바른 엔드포인트: POST /v1.0/users/{{userId}}/mail")
             logger.info(f"사용자 ID: {user_id}")
-            logger.info(f"발송자: {self.sender_email}, 수신자: {to_email}")
+            logger.info(f"발송자: {self.sender_email}, 수신자: {to_emails}")
             logger.info(f"제목: {subject}")
             logger.info(f"OAuth 토큰: {self.access_token[:20]}...")
             logger.info(f"페이로드: {payload}")
@@ -333,9 +377,19 @@ class NaverWorksEmailService:
             
             logger.info("=== 네이버웍스 API 기능 확인 완료 ===")
             
-            # 네이버웍스 API 메일 발송 시도
+            # 네이버웍스 API 메일 발송 시도 (두 가지 페이로드 구조 시도)
             logger.info(f"네이버웍스 API 메일 발송 시도: {url}")
+            
+            # 첫 번째 시도: 기본 페이로드 구조
+            logger.info("=== 첫 번째 시도: 기본 페이로드 구조 ===")
             response = requests.post(url, headers=headers, json=payload, timeout=30)
+            
+            # 400 오류인 경우 대안 페이로드 구조로 재시도
+            if response.status_code == 400:
+                logger.info("=== 두 번째 시도: 대안 페이로드 구조 ===")
+                logger.info(f"대안 페이로드: {json.dumps(alternative_payload, ensure_ascii=False, indent=2)}")
+                response = requests.post(url, headers=headers, json=alternative_payload, timeout=30)
+                logger.info(f"대안 페이로드 시도 결과: {response.status_code}")
             
             # 네이버웍스 공식 문서 기준 오류 분석
             if response.status_code == 403:
@@ -461,12 +515,30 @@ class NaverWorksEmailService:
                     "email": None
                 }
             else:
-                # 네이버웍스 API 오류 응답 처리
+                # 네이버웍스 API 오류 응답 처리 (400 오류 상세 분석)
+                logger.error("=== 네이버웍스 API 400 오류 상세 분석 ===")
+                logger.error(f"요청 URL: {url}")
+                logger.error(f"요청 헤더: {headers}")
+                logger.error(f"요청 페이로드: {json.dumps(payload, ensure_ascii=False, indent=2)}")
+                logger.error(f"응답 상태: {response.status_code}")
+                logger.error(f"응답 헤더: {dict(response.headers)}")
+                logger.error(f"응답 내용: {response.text}")
+                
                 try:
                     error_data = response.json()
                     error_message = error_data.get("message", error_data.get("error", f"API 오류: {response.status_code}"))
+                    logger.error(f"파싱된 오류 메시지: {error_message}")
                 except:
                     error_message = f"API 오류: {response.status_code} - {response.text}"
+                    logger.error(f"JSON 파싱 실패, 원본 응답: {response.text}")
+                
+                # 400 오류 가능한 원인들
+                logger.error("=== 400 오류 가능한 원인들 ===")
+                logger.error("1. 필수 필드 누락 (to, subject, body)")
+                logger.error("2. 잘못된 이메일 주소 형식")
+                logger.error("3. contentType 값이 잘못됨 (html/text)")
+                logger.error("4. userName 필드 형식 오류")
+                logger.error("5. 네이버웍스 API 버전 호환성 문제")
                 
                 logger.error(f"❌ 사규 챗봇 문의 메일 발송 실패: {response.status_code} - {error_message}")
                 return {
@@ -474,7 +546,14 @@ class NaverWorksEmailService:
                     "error": error_message,
                     "method": "naverworks_api",
                     "status_code": response.status_code,
-                    "email": None
+                    "email": None,
+                    "debug_info": {
+                        "url": url,
+                        "headers": headers,
+                        "payload": payload,
+                        "response_headers": dict(response.headers),
+                        "response_text": response.text
+                    }
                 }
                 
         except Exception as e:

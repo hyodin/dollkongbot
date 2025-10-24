@@ -136,6 +136,27 @@ export interface EmailResponse {
   email?: string;
 }
 
+// 네이버웍스 구성원 검색 관련 인터페이스
+export interface NaverworksUser {
+  userId: string;
+  name: string;
+  email: string;
+  department: string;
+  position: string;
+  profileImageUrl: string;
+}
+
+export interface UserSearchRequest {
+  query: string;
+  limit: number;
+}
+
+export interface UserSearchResponse {
+  success: boolean;
+  users: NaverworksUser[];
+  message: string;
+}
+
 class ApiClient {
   private client: AxiosInstance;
 
@@ -435,6 +456,17 @@ class ApiClient {
     message: string;
   }> {
     const response = await this.client.get('/email/health');
+    return response.data;
+  }
+
+  /**
+   * 네이버웍스 구성원 검색
+   */
+  async searchNaverworksUsers(query: string, limit: number = 10): Promise<UserSearchResponse> {
+    const response = await this.client.post<UserSearchResponse>('/auth/naverworks/users/search', {
+      query,
+      limit
+    });
     return response.data;
   }
 }
