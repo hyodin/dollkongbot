@@ -59,7 +59,7 @@ function MainApp() {
           // 로그인 기록이 없으면 바로 네이버웍스 로그인 페이지로 리다이렉트
           const CLIENT_ID = 'KG7nswiEUqq3499jB5Ih';
           const REDIRECT_URI = 'http://localhost:3000/';
-          const SCOPE = 'user.read';
+          const SCOPE = 'user.read,mail';
           
           const params = new URLSearchParams({
             client_id: CLIENT_ID,

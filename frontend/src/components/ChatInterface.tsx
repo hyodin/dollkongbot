@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import apiClient from '../api/client';
+import EmailInquiryModal from './EmailInquiryModal';
 
 interface ChatMessage {
   id: string;
@@ -56,12 +57,38 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
   const [isLoadingFAQ, setIsLoadingFAQ] = useState(false);
   const [showFAQ, setShowFAQ] = useState(false);
   
+  // 메일 문의 관련 상태
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [lastUserQuestion, setLastUserQuestion] = useState('');
+  const [lastChatResponse, setLastChatResponse] = useState('');
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // 헬퍼 함수: 키워드 문자열 추출 (객체 또는 문자열 모두 처리)
   const getKeywordString = (item: string | FAQKeyword): string => {
     return typeof item === 'string' ? item : item.keyword;
+  };
+
+  // 답변 품질 판단 함수
+  const isLowQualityResponse = (response: string): boolean => {
+    const lowQualityIndicators = [
+      '죄송합니다',
+      '알 수 없습니다',
+      '찾을 수 없습니다',
+      '답변할 수 없습니다',
+      '정보가 없습니다',
+      '확인할 수 없습니다',
+      '도움을 드릴 수 없습니다',
+      '답변을 찾을 수 없습니다',
+      '해당 정보를 찾을 수 없습니다',
+      '문서에서 관련 정보를 찾을 수 없습니다',
+      '관련 문서를 찾을 수 없습니다',
+      '적절한 답변을 제공할 수 없습니다'
+    ];
+    
+    const responseLower = response.toLowerCase();
+    return lowQualityIndicators.some(indicator => responseLower.includes(indicator.toLowerCase()));
   };
 
   // 메시지 목록 끝으로 스크롤
@@ -233,6 +260,12 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
       };
 
       setMessages(prev => [...prev, assistantMessage]);
+      
+      // 답변 품질 확인 및 메일 문의 버튼 표시 여부 결정
+      if (isLowQualityResponse(response.answer)) {
+        setLastUserQuestion(userMessage.content);
+        setLastChatResponse(response.answer);
+      }
       
     } catch (error: any) {
       console.error('채팅 오류:', error);
@@ -611,6 +644,25 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
               <div className={`dollkong-chat-bubble ${message.role}`}>
                 <div className="whitespace-pre-wrap">{message.content}</div>
                 
+                {/* 메일 문의 버튼 (assistant 메시지이고 답변 품질이 낮을 때만 표시) */}
+                {message.role === 'assistant' && isLowQualityResponse(message.content) && (
+                  <div className="mt-3 pt-3 border-t border-gray-200">
+                    <button
+                      onClick={() => {
+                        setLastUserQuestion(messages[messages.indexOf(message) - 1]?.content || '');
+                        setLastChatResponse(message.content);
+                        setShowEmailModal(true);
+                      }}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      📧 메일 문의하기
+                    </button>
+                    <p className="text-xs text-gray-500 mt-1">
+                      챗봇이 적절한 답변을 찾지 못했습니다. 담당자에게 직접 문의해보세요.
+                    </p>
+                  </div>
+                )}
+                
                 {/* hidden debug details removed for end users */}
                 
                 <div className="text-xs mt-2 ${message.role === 'user' ? 'text-white text-opacity-80' : 'text-gray-500'}">
@@ -671,6 +723,19 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
         
         {/* bottom status removed for cleaner UI */}
       </div>
+
+      {/* 메일 문의 모달 */}
+      <EmailInquiryModal
+        isOpen={showEmailModal}
+        onClose={() => setShowEmailModal(false)}
+        userQuestion={lastUserQuestion}
+        chatResponse={lastChatResponse}
+        chatHistory={messages.map(msg => ({
+          role: msg.role,
+          content: msg.content,
+          timestamp: msg.timestamp
+        }))}
+      />
     </div>
   );
 };

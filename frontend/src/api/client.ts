@@ -114,6 +114,27 @@ export interface FAQAnswerResponse {
   message?: string;
 }
 
+// 이메일 관련 인터페이스
+export interface EmailRequest {
+  subject: string;
+  content: string;
+  user_question: string;
+  chat_response: string;
+  chat_history: Array<{
+    role: string;
+    content: string;
+    timestamp: Date;
+  }>;
+  user_info?: any;
+  token_info?: any;
+}
+
+export interface EmailResponse {
+  success: boolean;
+  message: string;
+  email?: string;
+}
+
 class ApiClient {
   private client: AxiosInstance;
 
@@ -387,6 +408,32 @@ class ApiClient {
    */
   async getFAQAnswer(lvl3Question: string): Promise<FAQAnswerResponse> {
     const response = await this.client.get<FAQAnswerResponse>(`/faq/answer/${encodeURIComponent(lvl3Question)}`);
+    return response.data;
+  }
+
+  /**
+   * 문의 메일 발송
+   */
+  async sendInquiryEmail(request: EmailRequest): Promise<EmailResponse> {
+    const response = await this.client.post<EmailResponse>('/send-email', request);
+    return response.data;
+  }
+
+  /**
+   * 이메일 서비스 상태 확인
+   */
+  async checkEmailHealth(): Promise<{
+    status: string;
+    service: string;
+    config: any;
+    token_status: any;
+    admin_email: string;
+    sender_email: string;
+    api_available: boolean;
+    smtp_available: boolean;
+    message: string;
+  }> {
+    const response = await this.client.get('/email/health');
     return response.data;
   }
 }

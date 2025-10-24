@@ -4,6 +4,7 @@
 
 import logging
 import requests
+import os
 from fastapi import APIRouter, HTTPException, Header
 from pydantic import BaseModel
 from typing import Dict, Any, Optional
@@ -12,11 +13,16 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
-# 네이버웍스 OAuth 설정
-NAVERWORKS_CLIENT_ID = "KG7nswiEUqq3499jB5Ih"
-NAVERWORKS_CLIENT_SECRET = "t8_Nud9m8z"
-NAVERWORKS_TOKEN_URL = "https://auth.worksmobile.com/oauth2/v2.0/token"
-NAVERWORKS_USER_INFO_URL = "https://www.worksapis.com/v1.0/users/me"
+# 중복 요청 방지를 위한 캐시
+processed_codes = set()
+
+# 네이버웍스 OAuth 설정 (환경 변수에서 가져오기)
+# 공식 문서: https://developers.worksmobile.com/kr/docs/auth
+NAVERWORKS_CLIENT_ID = os.getenv("NAVERWORKS_CLIENT_ID", "KG7nswiEUqq3499jB5Ih")
+NAVERWORKS_CLIENT_SECRET = os.getenv("NAVERWORKS_CLIENT_SECRET", "t8_Nud9m8z")
+# 네이버웍스 공식 토큰 교환 엔드포인트 (v2.0)
+NAVERWORKS_TOKEN_URL = os.getenv("NAVERWORKS_TOKEN_URL", "https://auth.worksmobile.com/oauth2/v2.0/token")
+NAVERWORKS_USER_INFO_URL = os.getenv("NAVERWORKS_USER_INFO_URL", "https://www.worksapis.com/v1.0/users/me")
 
 # 네이버웍스 OAuth 설정 완료
 
@@ -37,19 +43,102 @@ async def naverworks_callback(request: OAuthCallbackRequest):
     네이버웍스 OAuth 콜백 처리
     """
     try:
-        logger.info(f"네이버웍스 OAuth 콜백 처리 시작: {request.code[:10]}...")
+        logger.info(f"네이버웍스 OAuth 콜백 처리 시작")
+        logger.info(f"인증 코드: {request.code}")
+        
+        # 중복 요청 방지 체크
+        if request.code in processed_codes:
+            logger.warning(f"이미 처리된 인증 코드입니다: {request.code}")
+            raise HTTPException(status_code=400, detail="이미 처리된 인증 코드입니다")
+        
+        # 처리 중인 코드로 표시
+        processed_codes.add(request.code)
+        logger.info(f"인증 코드 처리 시작: {request.code}")
+        
+        logger.info(f"인증 코드 타입: {type(request.code)}")
+        logger.info(f"인증 코드 길이: {len(request.code)}")
+        logger.info(f"인증 코드 바이트: {request.code.encode('utf-8')}")
+        
+        # URL 인코딩 문제 확인
+        import urllib.parse
+        url_encoded_code = urllib.parse.quote(request.code)
+        logger.info(f"URL 인코딩된 코드: {url_encoded_code}")
+        
+        # URL 디코딩 시도
+        try:
+            url_decoded_code = urllib.parse.unquote(request.code)
+            logger.info(f"URL 디코딩된 코드: {url_decoded_code}")
+            if url_decoded_code != request.code:
+                logger.warning("URL 디코딩 결과가 원본과 다릅니다!")
+                logger.info("URL 디코딩된 코드를 사용합니다.")
+                temp_code = url_decoded_code
+            else:
+                logger.info("URL 디코딩 결과가 원본과 동일합니다.")
+                temp_code = request.code
+        except Exception as e:
+            logger.warning(f"URL 디코딩 실패: {str(e)}")
+            logger.info("원본 코드를 사용합니다.")
+            temp_code = request.code
+        
+        # 인증 코드에서 패딩 제거
+        final_code = request.code.rstrip('=')
+        logger.info(f"원본 코드: {request.code}")
+        logger.info(f"패딩 제거된 코드: {final_code}")
+        logger.info(f"패딩 제거됨: {request.code != final_code}")
         
         # 실제 네이버웍스 OAuth 처리
-        # 1. 인증 코드로 액세스 토큰 교환
+        # 1. 인증 코드로 액세스 토큰 교환 (네이버웍스 공식 형식)
         token_data = {
             "grant_type": "authorization_code",
+            "code": final_code,  # 패딩 제거된 코드 사용
+            "redirect_uri": request.redirect_uri,
             "client_id": NAVERWORKS_CLIENT_ID,
-            "client_secret": NAVERWORKS_CLIENT_SECRET,
-            "code": request.code,
-            "redirect_uri": request.redirect_uri
+            "client_secret": NAVERWORKS_CLIENT_SECRET
         }
         
-        token_response = requests.post(NAVERWORKS_TOKEN_URL, data=token_data)
+        logger.info(f"토큰 교환 요청 시작")
+        logger.info(f"토큰 교환 URL: {NAVERWORKS_TOKEN_URL}")
+        logger.info(f"사용할 최종 코드: {final_code}")
+        logger.info(f"토큰 교환 데이터: {token_data}")
+        
+        # 상세한 디버깅 정보
+        logger.info("=== 토큰 교환 요청 상세 분석 ===")
+        logger.info(f"Client ID: {NAVERWORKS_CLIENT_ID}")
+        logger.info(f"Client Secret: {NAVERWORKS_CLIENT_SECRET[:10]}...")
+        logger.info(f"Redirect URI: {request.redirect_uri}")
+        logger.info(f"Code 길이: {len(final_code)}")
+        logger.info(f"Code 마지막 10자: {final_code[-10:]}")
+        logger.info(f"Code에 == 포함: {'==' in final_code}")
+        
+        # 네이버웍스 공식 문서에 따른 OAuth 구현
+        # 참고: https://developers.worksmobile.com/kr/docs/auth
+        headers = {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Accept': 'application/json'
+        }
+        logger.info(f"요청 헤더: {headers}")
+        
+        # 네이버웍스 공식 문서에 따른 토큰 교환 요청
+        token_data_official = {
+            "grant_type": "authorization_code",
+            "code": final_code,
+            "redirect_uri": request.redirect_uri,
+            "client_id": NAVERWORKS_CLIENT_ID,
+            "client_secret": NAVERWORKS_CLIENT_SECRET,
+            "scope": "user.read,mail"  # 프론트엔드와 동일한 scope
+        }
+        
+        logger.info(f"네이버웍스 공식 OAuth 토큰 교환 요청")
+        logger.info(f"공식 문서: https://developers.worksmobile.com/kr/docs/auth")
+        logger.info(f"엔드포인트: {NAVERWORKS_TOKEN_URL}")
+        logger.info(f"파라미터: {token_data_official}")
+        
+        # 공식 문서에 따른 정확한 요청
+        token_response = requests.post(NAVERWORKS_TOKEN_URL, data=token_data_official, headers=headers)
+        
+        logger.info(f"토큰 교환 응답 상태: {token_response.status_code}")
+        logger.info(f"토큰 교환 응답 헤더: {dict(token_response.headers)}")
+        logger.info(f"토큰 교환 응답 본문: {token_response.text}")
         
         if token_response.status_code != 200:
             logger.error(f"토큰 교환 실패: {token_response.status_code} - {token_response.text}")
@@ -58,12 +147,32 @@ async def naverworks_callback(request: OAuthCallbackRequest):
         token_info = token_response.json()
         
         access_token = token_info.get("access_token")
+        scope = token_info.get("scope", "mail mail.read")
         
         if not access_token:
             logger.error("액세스 토큰을 받지 못했습니다")
             raise HTTPException(status_code=400, detail="액세스 토큰을 받지 못했습니다")
         
-        logger.info("액세스 토큰 획득 성공")
+        logger.info(f"액세스 토큰 획득 성공")
+        logger.info(f"토큰 응답: {token_info}")
+        
+        # scope 정보 확인 (있는 경우)
+        if scope:
+            logger.info(f"토큰 scope: {scope}")
+            # 메일 권한 확인
+            has_mail_send = "mail" in scope
+            has_mail_read = "mail.read" in scope
+            
+            if has_mail_send and has_mail_read:
+                logger.info("✅ 메일 발송 및 읽기 권한이 모두 포함된 토큰입니다.")
+            elif has_mail_send:
+                logger.info("✅ 메일 발송 권한이 포함된 토큰입니다.")
+            elif has_mail_read:
+                logger.info("✅ 메일 읽기 권한이 포함된 토큰입니다.")
+            else:
+                logger.warning("⚠️ 메일 권한이 포함되지 않은 토큰입니다. 메일 발송이 실패할 수 있습니다.")
+        else:
+            logger.info("토큰에 scope 정보가 없습니다.")
         
         # 2. 사용자 정보 조회
         headers = {

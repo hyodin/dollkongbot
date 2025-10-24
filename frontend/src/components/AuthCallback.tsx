@@ -25,6 +25,13 @@ const AuthCallback: React.FC<AuthCallbackProps> = ({ onLoginSuccess }) => {
   useEffect(() => {
     // 이미 처리된 경우 무한루프 방지
     if (hasProcessed) {
+      console.log('이미 처리된 요청입니다. 중복 방지.');
+      return;
+    }
+    
+    // 처리 중인 경우도 방지
+    if (isProcessing) {
+      console.log('처리 중인 요청입니다. 중복 방지.');
       return;
     }
 
@@ -34,6 +41,19 @@ const AuthCallback: React.FC<AuthCallbackProps> = ({ onLoginSuccess }) => {
         const code = urlParams.get('code');
         const state = urlParams.get('state');
         const error = urlParams.get('error');
+        
+        console.log('=== URL 파라미터 분석 ===');
+        console.log('전체 URL:', window.location.href);
+        console.log('검색 파라미터:', window.location.search);
+        console.log('원본 인증 코드:', code);
+        console.log('인증 코드 타입:', typeof code);
+        console.log('인증 코드 길이:', code?.length);
+        console.log('URL 디코딩 테스트:', decodeURIComponent(code || ''));
+        
+        // 원본 인증 코드 그대로 사용
+        const cleanCode = code;
+        console.log('사용할 인증 코드:', cleanCode);
+        console.log('패딩 포함:', cleanCode?.includes('=='));
 
         // 오류 처리
         if (error) {
@@ -62,13 +82,13 @@ const AuthCallback: React.FC<AuthCallbackProps> = ({ onLoginSuccess }) => {
         // 처리 시작 표시
         setHasProcessed(true);
 
-        // 백엔드로 토큰 교환 요청
+        // 백엔드로 토큰 교환 요청 (정리된 코드 사용)
         const response = await fetch('/api/auth/naverworks/callback', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ code, redirect_uri: 'http://localhost:3000/' }),
+          body: JSON.stringify({ code: cleanCode, redirect_uri: 'http://localhost:3000/' }),
         });
 
         if (!response.ok) {
