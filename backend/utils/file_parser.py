@@ -6,15 +6,131 @@
 import io
 import logging
 from pathlib import Path
-from typing import Optional, Union, List, Dict, Any
+from typing import Optional, Union, List, Dict, Any, Tuple
 
 import PyPDF2
 import pdfplumber
 from docx import Document
 from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.merge import MergedCellRange
 
 logger = logging.getLogger(__name__)
+
+
+class MergedCellProcessor:
+    """병합된 셀 처리 유틸리티 클래스"""
+    
+    @staticmethod
+    def unmerge_cells_and_fill_values(sheet) -> Dict[Tuple[int, int], Any]:
+        """
+        병합된 셀을 해제하고 모든 셀에 값을 채움
+        
+        Args:
+            sheet: openpyxl 워크시트 객체
+            
+        Returns:
+            Dict[Tuple[int, int], Any]: (row, col) -> value 매핑
+        """
+        logger.info("병합된 셀 처리 시작...")
+        
+        # 모든 셀의 값을 저장할 딕셔너리
+        cell_values = {}
+        
+        # 먼저 모든 셀의 값을 읽어옴
+        for row in sheet.iter_rows():
+            for cell in row:
+                if cell.value is not None:
+                    cell_values[(cell.row, cell.column)] = cell.value
+        
+        # 병합된 셀 범위들을 처리
+        merged_ranges = list(sheet.merged_cells.ranges)
+        logger.info(f"병합된 셀 범위 {len(merged_ranges)}개 발견")
+        
+        for merged_range in merged_ranges:
+            # 병합된 범위의 첫 번째 셀(왼쪽 위)에서 값 가져오기
+            top_left_cell = sheet.cell(merged_range.min_row, merged_range.min_col)
+            merged_value = top_left_cell.value
+            
+            if merged_value is not None:
+                logger.debug(f"병합 범위 {merged_range} 처리: '{merged_value}'")
+                
+                # 병합된 범위의 모든 셀에 동일한 값 채우기
+                for row in range(merged_range.min_row, merged_range.max_row + 1):
+                    for col in range(merged_range.min_col, merged_range.max_col + 1):
+                        cell_values[(row, col)] = merged_value
+                        logger.debug(f"  셀 ({row}, {col})에 값 '{merged_value}' 복제")
+        
+        logger.info(f"병합된 셀 처리 완료: {len(cell_values)}개 셀 값 설정")
+        return cell_values
+    
+    @staticmethod
+    def process_table_with_merged_cells(table_data: List[List[str]]) -> List[List[str]]:
+        """
+        PDF 테이블 데이터에서 병합된 셀 패턴을 감지하고 값을 복제
+        
+        Args:
+            table_data: PDF에서 추출한 테이블 데이터
+            
+        Returns:
+            List[List[str]]: 병합된 셀이 해제된 테이블 데이터
+        """
+        if not table_data or len(table_data) < 2:
+            return table_data
+        
+        logger.info("PDF 테이블 병합된 셀 처리 시작...")
+        
+        # 헤더와 데이터 분리
+        headers = table_data[0]
+        data_rows = table_data[1:]
+        
+        # 각 컬럼별로 병합된 셀 패턴 감지 및 처리
+        processed_rows = []
+        
+        for row_idx, row in enumerate(data_rows):
+            processed_row = []
+            
+            for col_idx, cell_value in enumerate(row):
+                if cell_value and cell_value.strip():
+                    # 값이 있는 경우 그대로 사용
+                    processed_row.append(cell_value.strip())
+                else:
+                    # 빈 셀인 경우 이전 행에서 같은 컬럼의 값을 찾아서 복제
+                    filled_value = MergedCellProcessor._find_previous_value(
+                        data_rows, row_idx, col_idx
+                    )
+                    processed_row.append(filled_value)
+            
+            processed_rows.append(processed_row)
+        
+        # 헤더와 처리된 데이터 결합
+        result = [headers] + processed_rows
+        
+        logger.info(f"PDF 테이블 병합된 셀 처리 완료: {len(result)}개 행")
+        return result
+    
+    @staticmethod
+    def _find_previous_value(data_rows: List[List[str]], current_row_idx: int, col_idx: int) -> str:
+        """
+        현재 행 이전에서 같은 컬럼의 값을 찾아서 반환
+        
+        Args:
+            data_rows: 데이터 행들
+            current_row_idx: 현재 행 인덱스
+            col_idx: 컬럼 인덱스
+            
+        Returns:
+            str: 찾은 값 또는 빈 문자열
+        """
+        # 현재 행 이전의 행들을 역순으로 검색
+        for prev_row_idx in range(current_row_idx - 1, -1, -1):
+            if prev_row_idx < len(data_rows):
+                prev_row = data_rows[prev_row_idx]
+                if col_idx < len(prev_row) and prev_row[col_idx] and prev_row[col_idx].strip():
+                    logger.debug(f"병합된 셀 값 복제: 행 {prev_row_idx + 1} → 행 {current_row_idx + 1}, 컬럼 {col_idx + 1}")
+                    return prev_row[col_idx].strip()
+        
+        return ""
 
 
 class FileParser:
@@ -85,7 +201,12 @@ class FileParser:
                             for table_idx, table in enumerate(tables):
                                 if table and len(table) > 1:  # 헤더 + 데이터 행이 있는 경우
                                     logger.info(f"표 {table_idx + 1} 처리 중... (행 수: {len(table)})")
-                                    table_data = FileParser._process_pdf_table(table, page_num + 1, table_idx + 1)
+                                    
+                                    # 병합된 셀 처리 적용
+                                    processed_table = MergedCellProcessor.process_table_with_merged_cells(table)
+                                    logger.info(f"표 {table_idx + 1} 병합된 셀 처리 완료")
+                                    
+                                    table_data = FileParser._process_pdf_table(processed_table, page_num + 1, table_idx + 1)
                                     logger.info(f"표 {table_idx + 1}에서 {len(table_data)}개 항목 추출")
                                     structured_data.extend(table_data)
                                 else:
@@ -313,11 +434,11 @@ class FileParser:
                 structured_data.extend(paragraph_data)
                 logger.info(f"문단에서 {len(paragraph_data)}개 항목 추출")
             
-            # 2. 표 구조 분석
+            # 2. 표 구조 분석 (병합된 셀 처리 적용)
             table_data = FileParser._extract_docx_tables(doc.tables)
             if table_data:
                 structured_data.extend(table_data)
-                logger.info(f"표에서 {len(table_data)}개 항목 추출")
+                logger.info(f"표에서 {len(table_data)}개 항목 추출 (병합된 셀 처리 적용)")
             
             if structured_data:
                 logger.info(f"DOCX 구조화 데이터 추출 완료: {len(structured_data)}개 항목")
@@ -445,7 +566,7 @@ class FileParser:
     
     @staticmethod
     def _extract_docx_tables(tables) -> List[Dict[str, Any]]:
-        """DOCX 표에서 구조화된 데이터 추출"""
+        """DOCX 표에서 구조화된 데이터 추출 (병합된 셀 처리 적용)"""
         structured_data = []
         
         logger.info(f"표 처리 시작: {len(tables)}개 표")
@@ -457,25 +578,28 @@ class FileParser:
                 logger.warning(f"표 {table_idx}이 비어있습니다")
                 continue
             
+            # 표 데이터를 2차원 리스트로 변환
+            table_data = []
+            for row in table.rows:
+                row_data = []
+                for cell in row.cells:
+                    row_data.append(cell.text.strip())
+                table_data.append(row_data)
+            
+            # 병합된 셀 처리 적용
+            processed_table_data = MergedCellProcessor.process_table_with_merged_cells(table_data)
+            logger.info(f"표 {table_idx} 병합된 셀 처리 완료")
+            
             # 헤더 추출 (첫 번째 행)
-            headers = []
-            if table.rows:
-                first_row = table.rows[0]
-                for cell in first_row.cells:
-                    headers.append(cell.text.strip())
+            headers = processed_table_data[0] if processed_table_data else []
             
             logger.info(f"표 {table_idx} 헤더: {headers}")
             
             # 데이터 행 처리
             processed_rows = 0
-            for row_idx, row in enumerate(table.rows[1:], 1):
-                if not row.cells:
+            for row_idx, row_data in enumerate(processed_table_data[1:], 1):
+                if not row_data:
                     continue
-                
-                # 행 데이터 추출
-                row_data = []
-                for cell in row.cells:
-                    row_data.append(cell.text.strip())
                 
                 # 계층형 구조 추출
                 lvl1, lvl2, lvl3, lvl4 = FileParser._extract_hierarchical_structure(headers, row_data)
@@ -508,7 +632,7 @@ class FileParser:
             
             logger.info(f"표 {table_idx} 처리 완료: {processed_rows}개 행, {len([item for item in structured_data if item.get('table') == table_idx])}개 셀")
         
-        logger.info(f"표 처리 완료: {len(structured_data)}개 항목 추출")
+        logger.info(f"표 처리 완료: {len(structured_data)}개 항목 추출 (병합된 셀 처리 적용)")
         return structured_data
     
     @staticmethod
@@ -599,7 +723,7 @@ class FileParser:
     
     @staticmethod
     async def _extract_from_xlsx(file_content: bytes) -> List[Dict[str, Any]]:
-        """XLSX 파일에서 테두리 기반 표 영역만 추출 (계층형 컬럼 지원)"""
+        """XLSX 파일에서 테두리 기반 표 영역만 추출 (병합된 셀 처리 및 계층형 컬럼 지원)"""
         try:
             xlsx_file = io.BytesIO(file_content)
             # cellStyles=True 옵션으로 스타일 정보 포함하여 로드
@@ -616,6 +740,10 @@ class FileParser:
                 
                 logger.info(f"시트 '{sheet_name}' 처리 중... (전체 행: {sheet.max_row})")
                 
+                # 병합된 셀 처리 적용
+                merged_cell_values = MergedCellProcessor.unmerge_cells_and_fill_values(sheet)
+                logger.info(f"시트 '{sheet_name}' 병합된 셀 처리 완료")
+                
                 # 테두리 기반으로 표 영역 찾기
                 table_start, table_end = FileParser._find_table_range_by_border(sheet)
                 
@@ -627,10 +755,10 @@ class FileParser:
                 
                 # 표 영역 내에서 헤더 추출 (표의 첫 번째 행)
                 headers = {}
-                first_row = list(sheet.iter_rows(min_row=table_start, max_row=table_start, values_only=True))[0]
-                for col_idx, header_value in enumerate(first_row, 1):
-                    if header_value is not None:
-                        headers[col_idx] = str(header_value).strip()
+                for col_idx in range(1, sheet.max_column + 1):
+                    cell_value = merged_cell_values.get((table_start, col_idx))
+                    if cell_value is not None:
+                        headers[col_idx] = str(cell_value).strip()
                     else:
                         headers[col_idx] = f"Column{col_idx}"
                 
@@ -651,7 +779,11 @@ class FileParser:
                 
                 # 표 영역 내에서만 데이터 처리 (table_start+1부터 table_end까지)
                 for row_idx in range(table_start + 1, table_end + 1):
-                    row_values = list(sheet.iter_rows(min_row=row_idx, max_row=row_idx, values_only=True))[0]
+                    # 병합된 셀 처리된 값들로 행 데이터 구성
+                    row_values = []
+                    for col_idx in range(1, sheet.max_column + 1):
+                        cell_value = merged_cell_values.get((row_idx, col_idx))
+                        row_values.append(cell_value)
                     
                     # 행 컨텍스트 생성 (같은 행의 모든 값들)
                     row_context_parts = []
@@ -706,7 +838,7 @@ class FileParser:
                         lvl4_parts.append(remarks)
                     lvl4_value = " | ".join(lvl4_parts) if lvl4_parts else ""
                     
-                    # 각 셀 처리 (기존 로직 유지)
+                    # 각 셀 처리 (병합된 셀 처리된 값 사용)
                     for col_idx, cell_value in enumerate(row_values, 1):
                         if cell_value is not None:
                             cell_str = str(cell_value).strip()
@@ -743,7 +875,7 @@ class FileParser:
             if not cell_data:
                 raise RuntimeError("XLSX에서 데이터를 추출할 수 없습니다")
             
-            logger.info(f"XLSX 셀 데이터 추출 완료: {len(cell_data)}개 셀 (테두리 기반 표 영역만, 계층형 컬럼 포함)")
+            logger.info(f"XLSX 셀 데이터 추출 완료: {len(cell_data)}개 셀 (병합된 셀 처리 및 계층형 컬럼 포함)")
             return cell_data
             
         except Exception as e:
