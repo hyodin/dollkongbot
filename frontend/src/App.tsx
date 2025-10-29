@@ -41,6 +41,7 @@ function MainApp() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [user, setUser] = useState<NaverWorksUser | undefined>(undefined);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
   // 컴포넌트 마운트 시 문서 목록 로드 및 OAuth 콜백 처리
   useEffect(() => {
@@ -166,6 +167,9 @@ function MainApp() {
 
   // 로그아웃 처리
   const handleLogout = useCallback(() => {
+    // 리다이렉트 화면 전환
+    setIsRedirecting(true);
+
     setUser(undefined);
     setIsAdmin(false);
     setIsLoggedIn(false);
@@ -173,6 +177,27 @@ function MainApp() {
     localStorage.removeItem('naverworks_token');
     localStorage.removeItem('naverworks_is_admin');
     toast.success('로그아웃되었습니다');
+
+    // 로그아웃 후 네이버웍스 로그인 페이지로 즉시 리다이렉트
+    const CLIENT_ID = 'KG7nswiEUqq3499jB5Ih';
+    const REDIRECT_URI = 'http://localhost:3000/';
+    const SCOPE = 'user.read,mail';
+
+    const params = new URLSearchParams({
+      client_id: CLIENT_ID,
+      redirect_uri: REDIRECT_URI,
+      response_type: 'code',
+      scope: SCOPE,
+      state: 'naverworks_auth'
+    });
+
+    const authUrl = `https://auth.worksmobile.com/oauth2/v2.0/authorize?${params.toString()}`;
+
+    try {
+      window.location.href = authUrl;
+    } catch (_e) {
+      // 에러 시에는 리다이렉트 화면 유지
+    }
   }, []);
 
   // 문서 목록 로드
@@ -242,25 +267,42 @@ function MainApp() {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center">
-          {/* 돌콩이 이미지 */}
-          <div className="w-64 h-64 mx-auto mb-8 flex items-center justify-center animate-pulse">
-            <img src="/dollkong.png" alt="돌콩이" className="w-64 h-64 object-contain" />
-          </div>
-          
-          {/* 로딩 메시지 */}
-          <h2 className="text-4xl font-bold text-gray-900 mb-4">
-            잠시만 기다려주세요
-          </h2>
-          <p className="text-lg text-gray-600 mb-8">
-            로그인 페이지로 이동합니다...
-          </p>
+          {/* 리다이렉트 전용 화면 */}
+          {isRedirecting ? (
+            <>
+              {/* 기본 로그인 이동 화면 */}
+              <div className="w-64 h-64 mx-auto mb-8 flex items-center justify-center animate-pulse">
+                <img src="/dollkong.png" alt="돌콩이" className="w-64 h-64 object-contain" />
+              </div>
+              
+              <h2 className="text-4xl font-bold text-gray-900 mb-4">
+                잠시만 기다려주세요
+              </h2>
+              <p className="text-lg text-gray-600 mb-8">
+                로그인 페이지로 이동합니다...
+              </p>
+              {/* 로딩 애니메이션 - 기본 로그인 이동 화면에서만 표시 */}
+              <div className="flex justify-center space-x-2">
+                <div className="w-3 h-3 bg-orange-500 rounded-full animate-bounce" style={{animationDelay: '0s'}}></div>
+                <div className="w-3 h-3 bg-blue-500 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                <div className="w-3 h-3 bg-purple-500 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="w-64 h-64 mx-auto mb-8 flex items-center justify-center animate-pulse">
+                <img src="/zZdollkong.png" alt="잠자는 돌콩이" className="w-64 h-64 object-contain" />
+              </div>
+              <h2 className="text-4xl font-bold text-gray-900 mb-4">
+                잠자는 돌콩이
+              </h2>
+              <p className="text-lg text-gray-600 mb-8">
+                돌콩이가 잠을 자고 있습니다. 잠시 후 다시 시도해주세요.
+              </p>
+            </>
+          )}
 
-          {/* 로딩 애니메이션 */}
-          <div className="flex justify-center space-x-2">
-            <div className="w-3 h-3 bg-orange-500 rounded-full animate-bounce" style={{animationDelay: '0s'}}></div>
-            <div className="w-3 h-3 bg-blue-500 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-            <div className="w-3 h-3 bg-purple-500 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
-          </div>
+
         </div>
         
         {/* NaverWorksLogin 컴포넌트 (숨김) */}
