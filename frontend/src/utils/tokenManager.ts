@@ -127,10 +127,26 @@ export function saveTokenInfo(partial: Partial<StoredTokenInfo>): void {
 }
 
 /**
+ * 토큰 관련 로컬 스토리지 정리
+ */
+export function clearTokenStorage(): void {
+  try {
+    localStorage.removeItem(TOKEN_STORAGE_KEYS.access);
+    localStorage.removeItem(TOKEN_STORAGE_KEYS.refresh);
+    localStorage.removeItem(TOKEN_STORAGE_KEYS.expiresIn);
+    localStorage.removeItem(TOKEN_STORAGE_KEYS.expiryMs);
+    localStorage.removeItem(TOKEN_STORAGE_KEYS.tokenType);
+    localStorage.removeItem(TOKEN_STORAGE_KEYS.scope);
+  } catch (e) {
+    console.error('[tokenManager] clearTokenStorage error:', e);
+  }
+}
+
+/**
  * 토큰 만료 또는 임박 여부 판단
  * @param bufferMs 임박 판단 버퍼 (기본 2분)
  */
-import { getExpiryBufferMs } from '../config/auth';
+import { getExpiryBufferMs, getNaverworksAuthUrl } from '../config/auth';
 
 export function isTokenExpiringSoon(bufferMs?: number): boolean {
   const { tokenExpiryMs } = getStoredTokenInfo();
@@ -193,11 +209,26 @@ export async function ensureValidAccessToken(): Promise<string | undefined> {
     const info = getStoredTokenInfo();
     if (!info.accessToken) {
       console.warn('[tokenManager] no access token found');
+      // access 토큰이 없고 refresh 토큰도 없으면 로그인으로 리다이렉트
+      if (!info.refreshToken) {
+        const url = getNaverworksAuthUrl();
+        console.warn('[tokenManager] redirecting to login due to missing tokens');
+        clearTokenStorage();
+        window.location.href = url;
+      }
       return undefined;
     }
     if (isTokenExpiringSoon()) {
-      const refreshed = await refreshAccessToken();
-      return refreshed.accessToken;
+      try {
+        const refreshed = await refreshAccessToken();
+        return refreshed.accessToken;
+      } catch (e) {
+        console.error('[tokenManager] refresh failed, redirecting to login:', e);
+        const url = getNaverworksAuthUrl();
+        clearTokenStorage();
+        window.location.href = url;
+        return undefined;
+      }
     }
     return info.accessToken;
   } catch (e) {
