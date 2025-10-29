@@ -5,6 +5,7 @@
 
 import axios, { AxiosInstance, AxiosError } from 'axios';
 import { serverStatusManager } from '../utils/serverStatus';
+import { ensureValidAccessToken } from '../utils/tokenManager';
 
 // API 응답 타입 정의
 export interface ApiResponse<T = any> {
@@ -172,15 +173,19 @@ class ApiClient {
 
     // 요청 인터셉터 - 토큰 자동 추가
     this.client.interceptors.request.use(
-      (config) => {
+      async (config) => {
         console.log(`API 요청: ${config.method?.toUpperCase()} ${config.url}`);
-        
-        // 로컬스토리지에서 토큰 가져오기
-        const token = localStorage.getItem('naverworks_token');
-        if (token && config.headers) {
-          config.headers.Authorization = `Bearer ${token}`;
+
+        try {
+          // 토큰 유효성 확인 및 필요 시 갱신
+          const validToken = await ensureValidAccessToken();
+          if (validToken && config.headers) {
+            config.headers.Authorization = `Bearer ${validToken}`;
+          }
+        } catch (e) {
+          console.error('요청 전 토큰 확인/갱신 중 오류:', e);
         }
-        
+
         return config;
       },
       (error) => {

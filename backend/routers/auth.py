@@ -42,6 +42,21 @@ class OAuthResponse(BaseModel):
     is_admin: bool = False
     message: str = ""
 
+class RefreshRequest(BaseModel):
+    """리프레시 토큰으로 새로운 액세스 토큰을 발급받기 위한 요청 모델"""
+    refresh_token: str
+    scope: Optional[str] = None
+
+class RefreshResponse(BaseModel):
+    """리프레시 토큰 갱신 응답 모델"""
+    success: bool
+    access_token: str
+    refresh_token: Optional[str] = None
+    expires_in: Optional[int] = None
+    token_type: Optional[str] = None
+    scope: Optional[str] = None
+    message: str = ""
+
 @router.post("/naverworks/callback")
 async def naverworks_callback(request: OAuthCallbackRequest):
     """
@@ -269,14 +284,65 @@ async def naverworks_callback(request: OAuthCallbackRequest):
             is_admin=is_admin,
             message="로그인 성공"
         )
-        
     except requests.RequestException as e:
         logger.error(f"네이버웍스 API 요청 오류: {str(e)}")
         raise HTTPException(status_code=500, detail=f"네이버웍스 API 요청 오류: {str(e)}")
-    
     except Exception as e:
         logger.error(f"네이버웍스 OAuth 처리 오류: {str(e)}")
         raise HTTPException(status_code=500, detail=f"OAuth 처리 오류: {str(e)}")
+@router.post("/naverworks/refresh")
+async def naverworks_refresh(request: RefreshRequest) -> RefreshResponse:
+    """
+    네이버웍스 리프레시 토큰으로 새로운 액세스 토큰 갱신
+
+    주의: 클라이언트 시크릿이 필요한 요청이므로 반드시 백엔드에서 대행해야 합니다.
+    """
+    try:
+        logger.info("네이버웍스 토큰 갱신 요청 수신")
+        if not request.refresh_token:
+            raise HTTPException(status_code=400, detail="refresh_token 이 필요합니다")
+
+        headers = {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Accept': 'application/json'
+        }
+
+        payload = {
+            "grant_type": "refresh_token",
+            "refresh_token": request.refresh_token,
+            "client_id": NAVERWORKS_CLIENT_ID,
+            "client_secret": NAVERWORKS_CLIENT_SECRET,
+        }
+        if request.scope:
+            payload["scope"] = request.scope
+
+        logger.info(f"토큰 갱신 엔드포인트: {NAVERWORKS_TOKEN_URL}")
+        token_response = requests.post(NAVERWORKS_TOKEN_URL, data=payload, headers=headers, timeout=10)
+        logger.info(f"토큰 갱신 응답 상태: {token_response.status_code}")
+        logger.info(f"토큰 갱신 응답 본문: {token_response.text}")
+
+        if token_response.status_code != 200:
+            raise HTTPException(status_code=token_response.status_code, detail=f"토큰 갱신 실패: {token_response.text}")
+
+        token_info = token_response.json()
+
+        return RefreshResponse(
+            success=True,
+            access_token=token_info.get("access_token"),
+            refresh_token=token_info.get("refresh_token") or request.refresh_token,
+            expires_in=token_info.get("expires_in"),
+            token_type=token_info.get("token_type"),
+            scope=token_info.get("scope"),
+            message="토큰 갱신 성공"
+        )
+    except HTTPException:
+        raise
+    except requests.RequestException as e:
+        logger.error(f"네이버웍스 토큰 갱신 요청 오류: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"네이버웍스 토큰 갱신 요청 오류: {str(e)}")
+    except Exception as e:
+        logger.error(f"토큰 갱신 처리 오류: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"토큰 갱신 처리 오류: {str(e)}")
 
 @router.get("/naverworks/user")
 async def get_user_info():

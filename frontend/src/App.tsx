@@ -6,6 +6,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import { formatExpiryForStorage } from './utils/tokenManager';
 
 import FileUpload from './components/FileUpload';
 import SearchBar from './components/SearchBar';
@@ -100,9 +101,10 @@ function MainApp() {
               }
               if (data.expires_in) {
                 localStorage.setItem('naverworks_expires_in', String(data.expires_in));
-                // 만료 타임스탬프도 저장 (ms)
+                // 만료 시각을 KST 'YYYY-MM-DD HH:mm:ss' 형식으로 저장
                 const expiryAt = Date.now() + Number(data.expires_in) * 1000;
-                localStorage.setItem('naverworks_token_expiry_ms', String(expiryAt));
+                const formatted = formatExpiryForStorage(expiryAt);
+                localStorage.setItem('naverworks_token_expiry_ms', formatted);
               }
               if (data.token_type) {
                 localStorage.setItem('naverworks_token_type', data.token_type);
@@ -191,6 +193,11 @@ function MainApp() {
     localStorage.removeItem('naverworks_user');
     localStorage.removeItem('naverworks_token');
     localStorage.removeItem('naverworks_is_admin');
+    localStorage.removeItem('naverworks_refresh_token');
+    localStorage.removeItem('naverworks_expires_in');
+    localStorage.removeItem('naverworks_token_expiry_ms');
+    localStorage.removeItem('naverworks_token_type');
+    localStorage.removeItem('naverworks_scope');
     toast.success('로그아웃되었습니다');
 
     // 로그아웃 후 네이버웍스 로그인 페이지로 즉시 리다이렉트
