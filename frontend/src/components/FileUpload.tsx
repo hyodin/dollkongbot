@@ -25,10 +25,10 @@ const FileUpload: React.FC<FileUploadProps> = ({
 
   // 지원되는 파일 형식
   const acceptedFileTypes = {
-    'application/pdf': ['.pdf'],
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+    // 'application/pdf': ['.pdf'],
+    // 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
-    'text/plain': ['.txt'],
+    // 'text/plain': ['.txt'],
   };
 
   const maxFileSize = 10 * 1024 * 1024; // 10MB
@@ -202,22 +202,22 @@ const FileUpload: React.FC<FileUploadProps> = ({
           지원되는 파일 형식
         </h4>
         <div className="grid grid-cols-2 gap-2 text-sm text-gray-600">
-          <div className="flex items-center space-x-2">
+          {/* <div className="flex items-center space-x-2">
             <span className="w-2 h-2 bg-red-500 rounded-full"></span>
             <span>PDF 문서</span>
           </div>
           <div className="flex items-center space-x-2">
             <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
             <span>Word 문서 (.docx)</span>
-          </div>
+          </div> */}
           <div className="flex items-center space-x-2">
             <span className="w-2 h-2 bg-green-500 rounded-full"></span>
             <span>Excel 파일 (.xlsx)</span>
           </div>
-          <div className="flex items-center space-x-2">
+          {/* <div className="flex items-center space-x-2">
             <span className="w-2 h-2 bg-gray-500 rounded-full"></span>
             <span>텍스트 파일 (.txt)</span>
-          </div>
+          </div> */}
         </div>
       </div>
 

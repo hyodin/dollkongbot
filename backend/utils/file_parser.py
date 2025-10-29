@@ -6,6 +6,7 @@
 import io
 import logging
 from pathlib import Path
+import re
 from typing import Optional, Union, List, Dict, Any, Tuple
 
 import PyPDF2
@@ -795,27 +796,35 @@ class FileParser:
                     row_context = " | ".join(row_context_parts) if row_context_parts else ""
                     
                     # 계층형 컬럼 값 업데이트 (forward fill 로직)
+                    def _clean_hierarchy_value(text: str) -> str:
+                        """lvl1~lvl3 값에서 줄바꿈 제거 및 공백 정규화"""
+                        if not text:
+                            return ""
+                        # 줄바꿈을 공백으로 치환 후 다중 공백 축약
+                        no_newline = re.sub(r"[\r\n]+", " ", text)
+                        return re.sub(r"\s+", " ", no_newline).strip()
+
                     current_lvl1 = lvl1_value
                     current_lvl2 = lvl2_value
                     current_lvl3 = lvl3_value
                     
                     # 구분1 컬럼 확인
                     if lvl1_col_idx and len(row_values) >= lvl1_col_idx and row_values[lvl1_col_idx-1] is not None:
-                        val_str = str(row_values[lvl1_col_idx-1]).strip()
+                        val_str = _clean_hierarchy_value(str(row_values[lvl1_col_idx-1]).strip())
                         if val_str:
                             current_lvl1 = val_str
                             lvl1_value = val_str  # 다음 행을 위해 저장
                     
                     # 구분2 컬럼 확인
                     if lvl2_col_idx and len(row_values) >= lvl2_col_idx and row_values[lvl2_col_idx-1] is not None:
-                        val_str = str(row_values[lvl2_col_idx-1]).strip()
+                        val_str = _clean_hierarchy_value(str(row_values[lvl2_col_idx-1]).strip())
                         if val_str:
                             current_lvl2 = val_str
                             lvl2_value = val_str
                     
                     # 구분3 컬럼 확인
                     if lvl3_col_idx and len(row_values) >= lvl3_col_idx and row_values[lvl3_col_idx-1] is not None:
-                        val_str = str(row_values[lvl3_col_idx-1]).strip()
+                        val_str = _clean_hierarchy_value(str(row_values[lvl3_col_idx-1]).strip())
                         if val_str:
                             current_lvl3 = val_str
                             lvl3_value = val_str
@@ -863,9 +872,9 @@ class FileParser:
                                     "col_header": headers.get(col_idx, f"Column{col_idx}"),
                                     "is_numeric": is_numeric,
                                     # 계층형 컬럼 추가
-                                    "lvl1": current_lvl1 or "",
-                                    "lvl2": current_lvl2 or "",
-                                    "lvl3": current_lvl3 or "",
+                                    "lvl1": _clean_hierarchy_value(current_lvl1 or ""),
+                                    "lvl2": _clean_hierarchy_value(current_lvl2 or ""),
+                                    "lvl3": _clean_hierarchy_value(current_lvl3 or ""),
                                     "lvl4": lvl4_value
                                 }
                                 cell_data.append(cell_info)
