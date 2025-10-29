@@ -95,6 +95,21 @@ function MainApp() {
             const data = await response.json();
             if (data.success) {
               localStorage.setItem('naverworks_token', data.access_token);
+              if (data.refresh_token) {
+                localStorage.setItem('naverworks_refresh_token', data.refresh_token);
+              }
+              if (data.expires_in) {
+                localStorage.setItem('naverworks_expires_in', String(data.expires_in));
+                // 만료 타임스탬프도 저장 (ms)
+                const expiryAt = Date.now() + Number(data.expires_in) * 1000;
+                localStorage.setItem('naverworks_token_expiry_ms', String(expiryAt));
+              }
+              if (data.token_type) {
+                localStorage.setItem('naverworks_token_type', data.token_type);
+              }
+              if (data.scope) {
+                localStorage.setItem('naverworks_scope', data.scope);
+              }
               localStorage.setItem('naverworks_user', JSON.stringify(data.user));
               // 관리자 여부 저장
               localStorage.setItem('naverworks_is_admin', data.is_admin ? 'true' : 'false');

@@ -34,6 +34,10 @@ class OAuthCallbackRequest(BaseModel):
 class OAuthResponse(BaseModel):
     success: bool
     access_token: str
+    refresh_token: Optional[str] = None
+    expires_in: Optional[int] = None
+    token_type: Optional[str] = None
+    scope: Optional[str] = None
     user: Dict[str, Any]
     is_admin: bool = False
     message: str = ""
@@ -148,6 +152,9 @@ async def naverworks_callback(request: OAuthCallbackRequest):
         token_info = token_response.json()
         
         access_token = token_info.get("access_token")
+        refresh_token = token_info.get("refresh_token")
+        expires_in = token_info.get("expires_in")
+        token_type = token_info.get("token_type")
         scope = token_info.get("scope", "mail mail.read")
         
         if not access_token:
@@ -254,6 +261,10 @@ async def naverworks_callback(request: OAuthCallbackRequest):
         return OAuthResponse(
             success=True,
             access_token=access_token,
+            refresh_token=refresh_token,
+            expires_in=expires_in,
+            token_type=token_type,
+            scope=scope,
             user=user_data,
             is_admin=is_admin,
             message="로그인 성공"
