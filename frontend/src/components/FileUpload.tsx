@@ -89,15 +89,9 @@ const FileUpload: React.FC<FileUploadProps> = ({
     } catch (error: any) {
       console.error('파일 업로드 오류:', error);
       
-      let errorMessage = '파일 업로드 중 오류가 발생했습니다.';
+      // API 클라이언트에서 이미 에러 메시지를 처리했으므로 그대로 사용
+      // toast.error는 제거 (잠자는 돌콩이 알림창이 대신 표시됨)
       
-      if (error.message) {
-        errorMessage = error.message;
-      } else if (error.response?.data?.detail) {
-        errorMessage = error.response.data.detail;
-      }
-      
-      toast.error(errorMessage);
       setUploadProgress(0);
     } finally {
       setIsUploading(false);

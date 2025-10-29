@@ -4,6 +4,7 @@
  */
 
 import axios, { AxiosInstance, AxiosError } from 'axios';
+import { serverStatusManager } from '../utils/serverStatus';
 
 // API 응답 타입 정의
 export interface ApiResponse<T = any> {
@@ -192,16 +193,26 @@ class ApiClient {
     this.client.interceptors.response.use(
       (response) => {
         console.log(`API 응답: ${response.status} ${response.config.url}`);
+        
+        // 성공적인 응답이면 서버가 온라인 상태로 업데이트
+        serverStatusManager.updateStatus(true);
+        
         return response;
       },
       (error: AxiosError) => {
         console.error('API 응답 오류:', error.response?.status, error.message);
+        
+        // 모든 API 에러에 대해 서버 오프라인 상태로 설정
+        serverStatusManager.updateStatus(false, error.message);
         
         // 에러 메시지 정규화
         if (error.response?.data) {
           const errorData = error.response.data as any;
           error.message = errorData.detail || errorData.message || error.message;
         }
+        
+        // 모든 에러에 대해 사용자 친화적 메시지로 변경
+        error.message = serverStatusManager.getServerOfflineMessage();
         
         return Promise.reject(error);
       }

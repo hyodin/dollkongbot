@@ -118,7 +118,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
     } catch (error) {
       console.error('FAQ lvl1 키워드 로드 실패:', error);
       setFaqLevel1Keywords([]);
-      toast.error('FAQ 키워드를 불러오는데 실패했습니다.');
+      // toast.error는 제거 (잠자는 돌콩이 알림창이 대신 표시됨)
     } finally {
       setIsLoadingFAQ(false);
     }
@@ -143,7 +143,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
     } catch (error) {
       console.error('FAQ lvl2 키워드 로드 실패:', error);
       setFaqLevel2Keywords([]);
-      toast.error('FAQ 키워드를 불러오는데 실패했습니다.');
+      // toast.error는 제거 (잠자는 돌콩이 알림창이 대신 표시됨)
     } finally {
       setIsLoadingFAQ(false);
     }
@@ -165,7 +165,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
     } catch (error) {
       console.error('FAQ lvl3 질문 로드 실패:', error);
       setFaqLevel3Questions([]);
-      toast.error('FAQ 질문을 불러오는데 실패했습니다.');
+      // toast.error는 제거 (잠자는 돌콩이 알림창이 대신 표시됨)
     } finally {
       setIsLoadingFAQ(false);
     }
@@ -206,7 +206,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
       }
     } catch (error) {
       console.error('FAQ 답변 로드 실패:', error);
-      toast.error('FAQ 답변을 불러오는데 실패했습니다.');
+      // toast.error는 제거 (잠자는 돌콩이 알림창이 대신 표시됨)
     } finally {
       setIsLoadingFAQ(false);
     }
@@ -270,17 +270,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
     } catch (error: any) {
       console.error('채팅 오류:', error);
       
-      let errorMsg = '알 수 없는 오류가 발생했습니다.';
-      
-      if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
-        errorMsg = '응답 시간이 초과되었습니다. 더 간단한 질문을 시도해보세요.';
-      } else if (error.response?.status === 503) {
-        errorMsg = 'LLM 서비스가 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해주세요.';
-      } else if (error.response?.data?.detail) {
-        errorMsg = error.response.data.detail;
-      } else if (error.message) {
-        errorMsg = error.message;
-      }
+      // API 클라이언트에서 이미 에러 메시지를 처리했으므로 그대로 사용
+      const errorMsg = error.message || '알 수 없는 오류가 발생했습니다.';
       
       const errorMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
@@ -291,11 +282,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
       
       setMessages(prev => [...prev, errorMessage]);
       
-      if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
-        toast.error('응답 시간 초과: 더 간단한 질문을 시도해보세요.');
-      } else {
-        toast.error('채팅 중 오류가 발생했습니다.');
-      }
+      // 토스트는 표시하지 않음 (알림창이 대신 표시됨)
     } finally {
       setIsLoading(false);
     }

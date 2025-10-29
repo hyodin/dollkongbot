@@ -63,7 +63,7 @@ const AdminPage: React.FC = () => {
       setIsLoading(false);
     } catch (error: any) {
       setIsLoading(false);
-      toast.error(error.message || 'FAQ 데이터를 불러오는데 실패했습니다.');
+      // toast.error는 제거 (잠자는 돌콩이 알림창이 대신 표시됨)
     }
   };
 
@@ -168,7 +168,7 @@ const AdminPage: React.FC = () => {
       setFaqData(updatedData);
       toast.success(`'${faq.keyword}' FAQ가 ${newVisible ? '노출' : '숨김'} 처리되었습니다.`);
     } catch (error: any) {
-      toast.error(error.message || '처리 중 오류가 발생했습니다.');
+      // toast.error는 제거 (잠자는 돌콩이 알림창이 대신 표시됨)
     }
   };
 
@@ -223,7 +223,7 @@ const AdminPage: React.FC = () => {
       toast.success('FAQ 순서가 저장되었습니다.');
       await loadFAQSettings();
     } catch (error: any) {
-      toast.error(error.message || '순서 저장에 실패했습니다.');
+      // toast.error는 제거 (잠자는 돌콩이 알림창이 대신 표시됨)
     }
   };
 

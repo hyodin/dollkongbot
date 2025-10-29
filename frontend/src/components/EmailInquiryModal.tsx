@@ -59,7 +59,7 @@ const EmailInquiryModal: React.FC<EmailInquiryModalProps> = ({
       }
     } catch (error) {
       console.error('이메일 서비스 상태 확인 실패:', error);
-      toast.error('이메일 서비스 상태를 확인할 수 없습니다.');
+      // toast.error는 제거 (잠자는 돌콩이 알림창이 대신 표시됨)
     }
   };
 
@@ -84,12 +84,12 @@ const EmailInquiryModal: React.FC<EmailInquiryModalProps> = ({
         setSearchResults(options);
       } else {
         setSearchResults([]);
-        toast.error('구성원 검색에 실패했습니다.');
+        // toast.error는 제거 (잠자는 돌콩이 알림창이 대신 표시됨)
       }
     } catch (error) {
       console.error('구성원 검색 오류:', error);
       setSearchResults([]);
-      toast.error('구성원 검색 중 오류가 발생했습니다.');
+      // toast.error는 제거 (잠자는 돌콩이 알림창이 대신 표시됨)
     } finally {
       setIsSearching(false);
     }
@@ -218,11 +218,11 @@ const EmailInquiryModal: React.FC<EmailInquiryModalProps> = ({
         toast.success('메일이 성공적으로 발송되었습니다.');
         onClose();
       } else {
-        toast.error(`메일 발송 실패: ${response.message}`);
+        // toast.error는 제거 (잠자는 돌콩이 알림창이 대신 표시됨)
       }
     } catch (error: any) {
       console.error('메일 발송 오류:', error);
-      toast.error(`메일 발송 중 오류가 발생했습니다: ${error.message || '알 수 없는 오류'}`);
+      // toast.error는 제거 (잠자는 돌콩이 알림창이 대신 표시됨)
     } finally {
       setIsLoading(false);
     }

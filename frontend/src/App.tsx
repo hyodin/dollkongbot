@@ -13,6 +13,7 @@ import ResultList from './components/ResultList';
 import ChatInterface from './components/ChatInterface';
 import NaverWorksLogin from './components/NaverWorksLogin';
 import AdminPage from './components/AdminPage';
+import ServerStatusAlert from './components/ServerStatusAlert';
 import apiClient, { SearchResponse, SearchResult, UploadResponse, DocumentInfo } from './api/client';
 
 // 네이버웍스 사용자 타입
@@ -213,9 +214,9 @@ function MainApp() {
   };
 
   // 검색 오류 처리
-  const handleSearchError = (error: string) => {
+  const handleSearchError = (_error: string) => {
     setIsSearching(false);
-    toast.error(error);
+    // toast.error는 제거 (잠자는 돌콩이 알림창이 대신 표시됨)
   };
 
   // 결과 클릭 처리
@@ -231,8 +232,8 @@ function MainApp() {
       await apiClient.deleteDocument(fileId);
       toast.success('문서가 삭제되었습니다');
       loadDocuments();
-    } catch (error: any) {
-      toast.error(error.message || '문서 삭제에 실패했습니다');
+    } catch (_error: any) {
+      // toast.error는 제거 (잠자는 돌콩이 알림창이 대신 표시됨)
     }
   };
 
@@ -523,6 +524,9 @@ function MainApp() {
         </div>
       </footer>
 
+      {/* 서버 상태 알림 */}
+      <ServerStatusAlert />
+      
       {/* 토스트 알림 */}
       <ToastContainer
         position="top-right"
