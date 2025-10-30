@@ -206,6 +206,15 @@ export async function refreshAccessToken(): Promise<StoredTokenInfo> {
  */
 export async function ensureValidAccessToken(): Promise<string | undefined> {
   try {
+    // OAuth 콜백 진행 중(?code=...)에는 어떤 리다이렉트도 하지 않음
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('code')) {
+        console.log('[tokenManager] OAuth callback in progress; skip redirects');
+        return undefined;
+      }
+    } catch {}
+
     const info = getStoredTokenInfo();
     if (!info.accessToken) {
       console.warn('[tokenManager] no access token found');

@@ -167,8 +167,14 @@ function MainApp() {
 
     handleOAuthCallback();
     checkAuthStatus();
-    loadDocuments();
   }, []);
+
+  // 로그인 완료 후에만 문서 목록 로드 (콜백 전에 API 호출되어 재리다이렉트되는 문제 방지)
+  useEffect(() => {
+    if (isLoggedIn) {
+      loadDocuments();
+    }
+  }, [isLoggedIn]);
 
   // 로그인 성공 처리
   const handleLoginSuccess = useCallback((user: NaverWorksUser) => {
