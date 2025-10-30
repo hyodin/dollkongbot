@@ -11,9 +11,16 @@ Qdrant 벡터 데이터베이스 연동 서비스 (상세 로그 버전)
 - Qdrant: 벡터 데이터베이스
 - 임베딩 차원: 768 (KoSBERT)
 - 거리 측정: 코사인 유사도
+
+환경 변수:
+- QDRANT_HOST: Qdrant 서버 호스트
+- QDRANT_PORT: Qdrant 서버 포트
+- QDRANT_COLLECTION: 컬렉션명
+- QDRANT_TIMEOUT: 연결 타임아웃
 """
 
 import logging
+import os
 import time
 import uuid
 from datetime import datetime
@@ -43,39 +50,60 @@ class VectorDatabase:
     """
     
     def __init__(self, 
-                 host: str = "localhost", 
-                 port: int = 6333, 
-                 collection_name: str = "documents",
-                 use_local_storage: bool = False,
-                 storage_path: str = "./qdrant_storage"):
+                 host: Optional[str] = None, 
+                 port: Optional[int] = None, 
+                 collection_name: Optional[str] = None,
+                 use_local_storage: Optional[bool] = None,
+                 storage_path: Optional[str] = None,
+                 timeout: Optional[int] = None):
         """
         Qdrant 클라이언트 초기화
         
+        환경 변수에서 설정을 우선 로드하고, 없으면 기본값 또는 매개변수 사용
+        
         Args:
-            host: Qdrant 서버 호스트 (서버 모드)
-            port: Qdrant 서버 포트 (기본: 6333)
-            collection_name: 벡터 컬렉션명 (기본: documents)
-            use_local_storage: 로컬 파일 모드 사용 여부
-            storage_path: 로컬 저장 경로 (로컬 모드 시)
+            host: Qdrant 서버 호스트 (기본: 환경변수 또는 "localhost")
+            port: Qdrant 서버 포트 (기본: 환경변수 또는 6333)
+            collection_name: 벡터 컬렉션명 (기본: 환경변수 또는 "documents")
+            use_local_storage: 로컬 파일 모드 사용 여부 (기본: false)
+            storage_path: 로컬 저장 경로 (기본: 환경변수 또는 "./qdrant_storage")
+            timeout: 연결 타임아웃 (기본: 환경변수 또는 30)
+            
+        환경 변수:
+            QDRANT_HOST: 서버 호스트
+            QDRANT_PORT: 서버 포트
+            QDRANT_COLLECTION: 컬렉션명
+            QDRANT_USE_LOCAL_STORAGE: 로컬 모드 사용 여부 (true/false)
+            QDRANT_STORAGE_PATH: 로컬 저장 경로
+            QDRANT_TIMEOUT: 타임아웃 (초)
         """
         logger.info("=" * 70)
         logger.info("VectorDatabase 초기화 시작")
         logger.info("=" * 70)
         
-        self.host = host
-        self.port = port
-        self.collection_name = collection_name
-        self.use_local_storage = use_local_storage
-        self.storage_path = Path(storage_path) if use_local_storage else None
+        # 환경 변수에서 설정 로드 (우선순위: 매개변수 > 환경변수 > 기본값)
+        self.host = host or os.getenv("QDRANT_HOST", "localhost")
+        self.port = port or int(os.getenv("QDRANT_PORT", "6333"))
+        self.collection_name = collection_name or os.getenv("QDRANT_COLLECTION", "documents")
+        self.use_local_storage = (
+            use_local_storage 
+            if use_local_storage is not None 
+            else os.getenv("QDRANT_USE_LOCAL_STORAGE", "false").lower() == "true"
+        )
+        storage_path_env = storage_path or os.getenv("QDRANT_STORAGE_PATH", "./qdrant_storage")
+        self.storage_path = Path(storage_path_env) if self.use_local_storage else None
+        self.timeout = timeout or int(os.getenv("QDRANT_TIMEOUT", "30"))
+        
         self.client = None
         self.embedding_dim = None  # 임베딩 모델에서 동적으로 가져옴
         self.max_retries = 3  # 재시도 횟수
         
-        logger.info(f"설정:")
-        logger.info(f"  - 모드: {'로컬 파일' if use_local_storage else '서버'}")
-        logger.info(f"  - 호스트: {host}:{port if not use_local_storage else 'N/A'}")
-        logger.info(f"  - 컬렉션: {collection_name}")
-        logger.info(f"  - 저장 경로: {storage_path if use_local_storage else 'N/A'}")
+        logger.info(f"설정 로드 완료:")
+        logger.info(f"  - 모드: {'로컬 파일' if self.use_local_storage else '서버'}")
+        logger.info(f"  - 호스트: {self.host}:{self.port if not self.use_local_storage else 'N/A'}")
+        logger.info(f"  - 컬렉션: {self.collection_name}")
+        logger.info(f"  - 저장 경로: {storage_path_env if self.use_local_storage else 'N/A'}")
+        logger.info(f"  - 타임아웃: {self.timeout}초")
         
         self._init_client()
     
@@ -108,7 +136,7 @@ class VectorDatabase:
                 self.client = QdrantClient(
                     host=self.host,
                     port=self.port,
-                    timeout=30  # 30초 타임아웃
+                    timeout=self.timeout  # 환경변수에서 로드된 타임아웃
                 )
                 logger.info("✓ 서버 클라이언트 연결 완료")
             
@@ -257,6 +285,8 @@ class VectorDatabase:
             # RAG 최적화 메타데이터 추가
             if metadata_list and i < len(metadata_list):
                 metadata = metadata_list[i]
+                lvl1_keyword = metadata.get("lvl1", "")
+                
                 payload.update({
                     "search_text": metadata.get("search_text", chunk),
                     "context_text": metadata.get("context_text", chunk),
@@ -267,15 +297,21 @@ class VectorDatabase:
                     "row": metadata.get("row"),
                     "col": metadata.get("col"),
                     # 계층형 컬럼 추가
-                    "lvl1": metadata.get("lvl1", ""),
+                    "lvl1": lvl1_keyword,
                     "lvl2": metadata.get("lvl2", ""),
                     "lvl3": metadata.get("lvl3", ""),
-                    "lvl4": metadata.get("lvl4", "")
+                    "lvl4": metadata.get("lvl4", ""),
+                    # FAQ 관리 필드 추가 (기본값)
+                    "faq_visible": True if lvl1_keyword else False,  # lvl1이 있으면 노출
+                    "faq_order": 999  # 기본 순서 (나중에 관리자가 변경)
                 })
             else:
                 payload.update({
                     "search_text": chunk,
-                    "context_text": chunk
+                    "context_text": chunk,
+                    # FAQ 관리 필드 (일반 파일은 FAQ가 아니므로 기본값)
+                    "faq_visible": False,
+                    "faq_order": 999
                 })
             
             # 포인트 생성
@@ -560,6 +596,342 @@ class VectorDatabase:
             logger.error(f"❌ 파일 목록 조회 실패: {str(e)}")
             return []
 
+    def get_faq_lvl1_keywords(self) -> List[Dict[str, Any]]:
+        """
+        FAQ lvl1 키워드 목록 조회 (노출 여부 필터링 + 순서 정렬)
+        
+        Returns:
+            lvl1 키워드 리스트 (노출된 것만, faq_order 순서대로)
+            [{"keyword": "시공문의", "visible": true, "order": 1}, ...]
+        """
+        logger.info("FAQ lvl1 키워드 조회 중 (visible 필터링)...")
+        
+        try:
+            # faq_visible=true인 포인트만 조회
+            scroll_result = self.client.scroll(
+                collection_name=self.collection_name,
+                scroll_filter=models.Filter(
+                    must=[
+                        models.FieldCondition(
+                            key="faq_visible",
+                            match=models.MatchValue(value=True)
+                        )
+                    ]
+                ),
+                limit=10000,
+                with_payload=True,
+                with_vectors=False
+            )
+            
+            # lvl1별로 그룹화하고 최소 order 추출
+            lvl1_data = {}
+            for point in scroll_result[0]:
+                lvl1 = point.payload.get("lvl1", "")
+                if lvl1 and lvl1.strip():
+                    lvl1 = lvl1.strip()
+                    faq_order = point.payload.get("faq_order", 999)
+                    
+                    if lvl1 not in lvl1_data:
+                        lvl1_data[lvl1] = {
+                            "keyword": lvl1,
+                            "visible": True,
+                            "order": faq_order
+                        }
+                    else:
+                        # 같은 lvl1에 여러 포인트가 있으면 가장 작은 order 사용
+                        if faq_order < lvl1_data[lvl1]["order"]:
+                            lvl1_data[lvl1]["order"] = faq_order
+            
+            # order 순서대로 정렬
+            sorted_keywords = sorted(lvl1_data.values(), key=lambda x: x["order"])
+            logger.info(f"✓ lvl1 키워드 조회 완료 - {len(sorted_keywords)}개 (visible only)")
+            
+            return sorted_keywords
+            
+        except Exception as e:
+            logger.error(f"❌ lvl1 키워드 조회 실패: {str(e)}")
+            return []
+
+    def get_faq_lvl2_keywords(self) -> List[str]:
+        """
+        FAQ lvl2 키워드 목록 조회
+        
+        Returns:
+            lvl2 키워드 리스트 (중복 제거, 정렬)
+        """
+        logger.info("FAQ lvl2 키워드 조회 중...")
+        
+        try:
+            # 모든 포인트 스크롤하여 lvl2 필드 수집
+            scroll_result = self.client.scroll(
+                collection_name=self.collection_name,
+                limit=10000,  # 더 많은 데이터 조회
+                with_payload=True,
+                with_vectors=False
+            )
+            
+            lvl2_keywords = set()
+            for point in scroll_result[0]:
+                lvl2 = point.payload.get("lvl2", "")
+                if lvl2 and lvl2.strip():  # 빈 문자열 제외
+                    lvl2_keywords.add(lvl2.strip())
+            
+            # 정렬하여 반환
+            sorted_keywords = sorted(list(lvl2_keywords))
+            logger.info(f"✓ lvl2 키워드 조회 완료 - {len(sorted_keywords)}개")
+            
+            return sorted_keywords
+            
+        except Exception as e:
+            logger.error(f"❌ lvl2 키워드 조회 실패: {str(e)}")
+            return []
+
+    def get_faq_lvl2_by_lvl1(self, lvl1_keyword: str) -> List[str]:
+        """
+        특정 lvl1 키워드에 속한 lvl2 키워드 목록 조회
+        
+        Args:
+            lvl1_keyword: lvl1 키워드
+            
+        Returns:
+            lvl2 키워드 리스트 (중복 제거, 정렬)
+        """
+        logger.info(f"lvl1 '{lvl1_keyword}'의 lvl2 키워드 조회 중...")
+        
+        try:
+            # lvl1 키워드로 필터링하여 검색
+            search_result = self.client.scroll(
+                collection_name=self.collection_name,
+                scroll_filter=models.Filter(
+                    must=[
+                        models.FieldCondition(
+                            key="lvl1",
+                            match=models.MatchValue(value=lvl1_keyword)
+                        )
+                    ]
+                ),
+                limit=10000,
+                with_payload=True,
+                with_vectors=False
+            )
+            
+            lvl2_keywords = set()
+            for point in search_result[0]:
+                lvl2 = point.payload.get("lvl2", "")
+                if lvl2 and lvl2.strip():  # 빈 문자열 제외
+                    lvl2_keywords.add(lvl2.strip())
+            
+            # 정렬하여 반환
+            sorted_keywords = sorted(list(lvl2_keywords))
+            logger.info(f"✓ lvl2 키워드 조회 완료 - {len(sorted_keywords)}개")
+            
+            return sorted_keywords
+            
+        except Exception as e:
+            logger.error(f"❌ lvl2 키워드 조회 실패: {str(e)}")
+            return []
+
+    def get_faq_lvl3_questions(self, lvl2_keyword: str) -> List[str]:
+        """
+        특정 lvl2 키워드에 속한 lvl3 질문 목록 조회
+        
+        Args:
+            lvl2_keyword: lvl2 키워드
+            
+        Returns:
+            lvl3 질문 리스트 (중복 제거, 정렬)
+        """
+        logger.info(f"lvl2 '{lvl2_keyword}'의 lvl3 질문 조회 중...")
+        
+        try:
+            # lvl2 키워드로 필터링하여 검색
+            search_result = self.client.scroll(
+                collection_name=self.collection_name,
+                scroll_filter=models.Filter(
+                    must=[
+                        models.FieldCondition(
+                            key="lvl2",
+                            match=models.MatchValue(value=lvl2_keyword)
+                        )
+                    ]
+                ),
+                limit=10000,
+                with_payload=True,
+                with_vectors=False
+            )
+            
+            lvl3_questions = set()
+            for point in search_result[0]:
+                lvl3 = point.payload.get("lvl3", "")
+                if lvl3 and lvl3.strip():  # 빈 문자열 제외
+                    lvl3_questions.add(lvl3.strip())
+            
+            # 정렬하여 반환
+            sorted_questions = sorted(list(lvl3_questions))
+            logger.info(f"✓ lvl3 질문 조회 완료 - {len(sorted_questions)}개")
+            
+            return sorted_questions
+            
+        except Exception as e:
+            logger.error(f"❌ lvl3 질문 조회 실패: {str(e)}")
+            return []
+
+    def get_faq_answer(self, lvl3_question: str) -> Optional[str]:
+        """
+        특정 lvl3 질문에 대한 lvl4 답변 조회
+        
+        Args:
+            lvl3_question: lvl3 질문
+            
+        Returns:
+            lvl4 답변 (첫 번째 매칭 결과)
+        """
+        logger.info(f"lvl3 '{lvl3_question}'의 답변 조회 중...")
+        
+        try:
+            # lvl3 질문으로 필터링하여 검색
+            search_result = self.client.scroll(
+                collection_name=self.collection_name,
+                scroll_filter=models.Filter(
+                    must=[
+                        models.FieldCondition(
+                            key="lvl3",
+                            match=models.MatchValue(value=lvl3_question)
+                        )
+                    ]
+                ),
+                limit=1,  # 첫 번째 결과만
+                with_payload=True,
+                with_vectors=False
+            )
+            
+            if search_result[0]:
+                lvl4_answer = search_result[0][0].payload.get("lvl4", "")
+                if lvl4_answer and lvl4_answer.strip():
+                    logger.info("✓ 답변 조회 완료")
+                    return lvl4_answer.strip()
+            
+            logger.warning("해당 질문에 대한 답변을 찾을 수 없습니다")
+            return None
+            
+        except Exception as e:
+            logger.error(f"❌ 답변 조회 실패: {str(e)}")
+            return None
+
+    def update_faq_settings(self, lvl1_keyword: str, visible: bool = None, order: int = None) -> bool:
+        """
+        특정 lvl1 키워드의 FAQ 설정 업데이트
+        
+        Args:
+            lvl1_keyword: 업데이트할 lvl1 키워드
+            visible: 노출 여부 (None이면 변경하지 않음)
+            order: 순서 (None이면 변경하지 않음)
+            
+        Returns:
+            업데이트 성공 여부
+        """
+        logger.info(f"FAQ 설정 업데이트 시작 - lvl1: {lvl1_keyword}")
+        logger.info(f"  visible: {visible}, order: {order}")
+        
+        try:
+            # 해당 lvl1 키워드를 가진 모든 포인트 조회
+            scroll_result = self.client.scroll(
+                collection_name=self.collection_name,
+                scroll_filter=models.Filter(
+                    must=[
+                        models.FieldCondition(
+                            key="lvl1",
+                            match=models.MatchValue(value=lvl1_keyword)
+                        )
+                    ]
+                ),
+                limit=10000,
+                with_payload=True,
+                with_vectors=False
+            )
+            
+            if not scroll_result[0]:
+                logger.warning(f"'{lvl1_keyword}' 키워드를 가진 포인트가 없습니다")
+                return False
+            
+            # 업데이트할 payload 구성
+            update_payload = {}
+            if visible is not None:
+                update_payload["faq_visible"] = visible
+            if order is not None:
+                update_payload["faq_order"] = order
+            
+            if not update_payload:
+                logger.warning("업데이트할 필드가 없습니다")
+                return False
+            
+            # 각 포인트 업데이트
+            update_count = 0
+            for point in scroll_result[0]:
+                self.client.set_payload(
+                    collection_name=self.collection_name,
+                    payload=update_payload,
+                    points=[point.id]
+                )
+                update_count += 1
+            
+            logger.info(f"✅ FAQ 설정 업데이트 완료 - {update_count}개 포인트 업데이트됨")
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ FAQ 설정 업데이트 실패: {str(e)}")
+            return False
+
+    def get_all_faq_lvl1_settings(self) -> List[Dict[str, Any]]:
+        """
+        모든 lvl1 키워드의 FAQ 설정 조회 (visible 여부 무관)
+        
+        Returns:
+            모든 lvl1 키워드와 설정 리스트
+        """
+        logger.info("모든 FAQ lvl1 설정 조회 중...")
+        
+        try:
+            # 모든 포인트 조회
+            scroll_result = self.client.scroll(
+                collection_name=self.collection_name,
+                limit=10000,
+                with_payload=True,
+                with_vectors=False
+            )
+            
+            # lvl1별로 그룹화
+            lvl1_data = {}
+            for point in scroll_result[0]:
+                lvl1 = point.payload.get("lvl1", "")
+                if lvl1 and lvl1.strip():
+                    lvl1 = lvl1.strip()
+                    faq_visible = point.payload.get("faq_visible", False)
+                    faq_order = point.payload.get("faq_order", 999)
+                    
+                    if lvl1 not in lvl1_data:
+                        lvl1_data[lvl1] = {
+                            "keyword": lvl1,
+                            "visible": faq_visible,
+                            "order": faq_order,
+                            "count": 1
+                        }
+                    else:
+                        lvl1_data[lvl1]["count"] += 1
+                        # 가장 작은 order 사용
+                        if faq_order < lvl1_data[lvl1]["order"]:
+                            lvl1_data[lvl1]["order"] = faq_order
+            
+            # order 순서대로 정렬
+            sorted_settings = sorted(lvl1_data.values(), key=lambda x: x["order"])
+            logger.info(f"✓ 모든 FAQ 설정 조회 완료 - {len(sorted_settings)}개")
+            
+            return sorted_settings
+            
+        except Exception as e:
+            logger.error(f"❌ FAQ 설정 조회 실패: {str(e)}")
+            return []
+
 
 # 싱글톤 인스턴스
 _vectordb_instance = None
@@ -569,18 +941,23 @@ def get_vector_db() -> VectorDatabase:
     """
     전역 벡터 DB 인스턴스 반환 (싱글톤 패턴)
     
+    환경 변수에서 설정을 자동으로 로드합니다.
+    매개변수 없이 호출하면 .env 파일의 설정 사용
+    
+    환경 변수:
+        QDRANT_HOST: 서버 호스트 (기본: localhost)
+        QDRANT_PORT: 서버 포트 (기본: 6333)
+        QDRANT_COLLECTION: 컬렉션명 (기본: documents)
+        QDRANT_USE_LOCAL_STORAGE: 로컬 모드 (기본: false)
+        QDRANT_TIMEOUT: 타임아웃 (기본: 30)
+    
     Returns:
         VectorDatabase 인스턴스
     """
     global _vectordb_instance
     if _vectordb_instance is None:
-        logger.info("새로운 VectorDatabase 인스턴스 생성")
-        # 서버 모드로 기본 설정
-        _vectordb_instance = VectorDatabase(
-            host="localhost",
-            port=6333,
-            collection_name="documents",
-            use_local_storage=False  # 서버 모드 활성화
-        )
+        logger.info("새로운 VectorDatabase 인스턴스 생성 (환경변수 기반)")
+        # 환경 변수에서 자동 로드 (매개변수 없이 호출)
+        _vectordb_instance = VectorDatabase()
     return _vectordb_instance
 

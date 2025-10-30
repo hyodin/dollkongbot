@@ -1,12 +1,17 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { toast } from 'react-toastify';
 import apiClient from '../api/client';
+import EmailInquiryModal from './EmailInquiryModal';
 
 interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
+  faqButtons?: {
+    level: 'lvl1' | 'lvl2' | 'lvl3';
+    items: string[];
+  };
   context_documents?: ContextDocument[];
   processing_time?: {
     total: number;
@@ -31,6 +36,13 @@ interface ChatInterfaceProps {
   className?: string;
 }
 
+// FAQ 키워드 타입 (백엔드가 객체로 반환)
+interface FAQKeyword {
+  keyword: string;
+  visible?: boolean;
+  order?: number;
+}
+
 const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState('');
@@ -40,8 +52,112 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
   const [maxResults, setMaxResults] = useState(5);
   const [scoreThreshold, setScoreThreshold] = useState(0.1);
   
+  // FAQ 관련 상태 (백엔드가 객체 배열 또는 문자열 배열 반환 가능)
+  const [faqLevel1Keywords, setFaqLevel1Keywords] = useState<(string | FAQKeyword)[]>([]);
+  const [faqLevel2Keywords, setFaqLevel2Keywords] = useState<(string | FAQKeyword)[]>([]);
+  const [faqLevel3Questions, setFaqLevel3Questions] = useState<(string | FAQKeyword)[]>([]);
+  const [selectedLevel1, setSelectedLevel1] = useState<string>('');
+  const [selectedLevel2, setSelectedLevel2] = useState<string>('');
+  const [isLoadingFAQ, setIsLoadingFAQ] = useState(false);
+  
+  // 메일 문의 관련 상태
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [lastUserQuestion, setLastUserQuestion] = useState('');
+  const [lastChatResponse, setLastChatResponse] = useState('');
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // 초기 인사 텍스트 및 생성 함수
+  const greetingText = '안녕하세요! 돌콩이에요! 👋\n업로드된 사내규정 문서를 바탕으로 정확한 답변을 제공해드릴게요!\n아래 버튼을 누르거나 궁금하신 내용을 직접 입력하세요.';
+  const createGreetingMessage = (): ChatMessage => ({
+    id: `greet-${Date.now()}`,
+    role: 'assistant',
+    content: greetingText,
+    timestamp: new Date()
+  });
+
+  // FAQ 내비게이션: 뒤로가기
+  const handleFaqBack = (level: 'lvl2' | 'lvl3') => {
+    if (level === 'lvl3') {
+      // lvl3 -> lvl2 목록으로
+      resetToLevel2();
+      if (faqLevel2Keywords.length > 0) {
+        sendAssistantListMessage(`${selectedLevel1} 하위 키워드로 돌아왔어요`, faqLevel2Keywords, 'lvl2');
+      }
+    } else if (level === 'lvl2') {
+      // lvl2 -> 초기 인사로 회귀 (lvl1 초기화 포함)
+      handleNewInquiry();
+    }
+  };
+
+  // FAQ 초기화: 다른 문의하기
+  const handleNewInquiry = () => {
+    resetToLevel1();
+    const greeting = createGreetingMessage();
+    const lvl1Items = faqLevel1Keywords.map((it) => getKeywordString(it));
+    const greetingWithButtons: ChatMessage = {
+      ...greeting,
+      faqButtons: { level: 'lvl1', items: lvl1Items }
+    };
+    setMessages(prev => [...prev, greetingWithButtons]);
+  };
+
+  // 헬퍼 함수: 키워드 문자열 추출 (객체 또는 문자열 모두 처리)
+  const getKeywordString = (item: string | FAQKeyword): string => {
+    return typeof item === 'string' ? item : item.keyword;
+  };
+
+  // 헬퍼 함수: 사용자 선택을 채팅 히스토리에 남김
+  const appendUserMessage = (text: string) => {
+    const userMessage: ChatMessage = {
+      id: `${Date.now()}-u`,
+      role: 'user',
+      content: `${text} 선택`,
+      timestamp: new Date()
+    };
+    setMessages(prev => [...prev, userMessage]);
+  };
+
+  // 헬퍼 함수: 어시스턴트 목록 메시지(버튼 포함) 전송
+  const sendAssistantListMessage = (
+    heading: string,
+    items: (string | FAQKeyword)[],
+    level: 'lvl1' | 'lvl2' | 'lvl3'
+  ) => {
+    const assistantMessage: ChatMessage = {
+      id: Date.now().toString(),
+      role: 'assistant',
+      content: heading,
+      timestamp: new Date(),
+      faqButtons: {
+        level,
+        items: items.map((it) => getKeywordString(it))
+      }
+    };
+    setMessages(prev => [...prev, assistantMessage]);
+  };
+
+  // 답변 품질 판단 함수
+  const isLowQualityResponse = (response: string): boolean => {
+    const lowQualityIndicators = [
+      '죄송합니다',
+      '알 수 없습니다',
+      '찾을 수 없습니다',
+      '답변할 수 없습니다',
+      '정보가 없습니다',
+      '확인할 수 없습니다',
+      '도움을 드릴 수 없습니다',
+      '답변을 찾을 수 없습니다',
+      '해당 정보를 찾을 수 없습니다',
+      '문서에서 관련 정보를 찾을 수 없습니다',
+      '관련 문서를 찾을 수 없습니다',
+      '적절한 답변을 제공할 수 없습니다'
+    ];
+    
+    const responseLower = response.toLowerCase();
+    return lowQualityIndicators.some(indicator => responseLower.includes(indicator.toLowerCase()));
+  };
 
   // 메시지 목록 끝으로 스크롤
   const scrollToBottom = () => {
@@ -51,6 +167,187 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // FAQ lvl1 키워드 로드
+  useEffect(() => {
+    loadFAQLevel1Keywords();
+  }, []);
+
+  // 가장 최근 FAQ 버튼이 포함된 메시지 인덱스 (이전 히스토리의 버튼은 비활성화)
+  const lastFaqButtonsIndex = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i] as any;
+      if (m.role === 'assistant' && m.faqButtons && m.faqButtons.items?.length) return i;
+    }
+    return -1;
+  }, [messages]);
+
+  // 최신 일반 어시스턴트 답변(FAQ 목록/인사 제외) 인덱스
+  const lastAssistantPlainIndex = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i] as any;
+      if (m.role === 'assistant' && !m.faqButtons && m.content !== greetingText) return i;
+    }
+    return -1;
+  }, [messages, greetingText]);
+
+  // 초기 인사 메시지를 채팅 히스토리에 추가 (앱 시작 시 한 번)
+  useEffect(() => {
+    if (messages.length === 0) {
+      setMessages([createGreetingMessage()]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // FAQ lvl1 키워드 로드 함수
+  const loadFAQLevel1Keywords = async () => {
+    try {
+      setIsLoadingFAQ(true);
+      const response = await apiClient.getFAQLevel1Keywords();
+      if (response.status === 'success' && response.data) {
+        setFaqLevel1Keywords(response.data);
+        // 첫 인사 말풍선에 lvl1 버튼 부착
+        setMessages(prev => {
+          if (prev.length === 0) return prev;
+          const first = prev[0];
+          const updatedFirst: ChatMessage = {
+            ...first,
+            faqButtons: {
+              level: 'lvl1',
+              items: (response.data ?? []).map((it: any) => getKeywordString(it))
+            }
+          };
+          return [updatedFirst, ...prev.slice(1)];
+        });
+      } else {
+        setFaqLevel1Keywords([]);
+      }
+    } catch (error) {
+      console.error('FAQ lvl1 키워드 로드 실패:', error);
+      setFaqLevel1Keywords([]);
+      // toast.error는 제거 (잠자는 돌콩이 알림창이 대신 표시됨)
+    } finally {
+      setIsLoadingFAQ(false);
+    }
+  };
+
+  // lvl1 키워드 클릭 핸들러
+  const handleLevel1Click = async (item: string | FAQKeyword) => {
+    const keyword = getKeywordString(item);
+    try {
+      setIsLoadingFAQ(true);
+      // 사용자 선택 메시지 남기기
+      appendUserMessage(keyword);
+      setSelectedLevel1(keyword);
+      const response = await apiClient.getFAQLevel2ByLevel1(keyword);
+      if (response.status === 'success' && response.data) {
+        setFaqLevel2Keywords(response.data);
+        // 이전 단계 상태 초기화
+        setFaqLevel3Questions([]);
+        setSelectedLevel2('');
+        // 어시스턴트 메시지로 lvl2 키워드 버튼 제공
+        if (response.data.length > 0) {
+          sendAssistantListMessage(`다음 하위 키워드를 선택해 주세요`, response.data, 'lvl2');
+        } else {
+          toast.info(`'${keyword}' 주제에 등록된 하위 키워드가 없습니다.`);
+        }
+      } else {
+        setFaqLevel2Keywords([]);
+        toast.info(`'${keyword}' 주제에 등록된 하위 키워드가 없습니다.`);
+      }
+    } catch (error) {
+      console.error('FAQ lvl2 키워드 로드 실패:', error);
+      setFaqLevel2Keywords([]);
+      // toast.error는 제거 (잠자는 돌콩이 알림창이 대신 표시됨)
+    } finally {
+      setIsLoadingFAQ(false);
+    }
+  };
+
+  // lvl2 키워드 클릭 핸들러
+  const handleLevel2Click = async (item: string | FAQKeyword) => {
+    const keyword = getKeywordString(item);
+    try {
+      setIsLoadingFAQ(true);
+      // 사용자 선택 메시지 남기기
+      appendUserMessage(keyword);
+      setSelectedLevel2(keyword);
+      const response = await apiClient.getFAQLevel3Questions(keyword);
+      if (response.status === 'success' && response.data) {
+        setFaqLevel3Questions(response.data);
+        // 어시스턴트 메시지로 lvl3 질문 버튼 제공
+        if (response.data.length > 0) {
+          sendAssistantListMessage(`다음 하위 키워드를 선택해 주세요`, response.data, 'lvl3');
+        } else {
+          toast.info(`'${keyword}' 주제에 등록된 질문이 없습니다.`);
+        }
+      } else {
+        setFaqLevel3Questions([]);
+        toast.info(`'${keyword}' 주제에 등록된 질문이 없습니다.`);
+      }
+    } catch (error) {
+      console.error('FAQ lvl3 질문 로드 실패:', error);
+      setFaqLevel3Questions([]);
+      // toast.error는 제거 (잠자는 돌콩이 알림창이 대신 표시됨)
+    } finally {
+      setIsLoadingFAQ(false);
+    }
+  };
+
+  // lvl3 질문 클릭 핸들러
+  const handleLevel3Click = async (item: string | FAQKeyword) => {
+    const question = getKeywordString(item);
+    try {
+      setIsLoadingFAQ(true);
+      // 사용자 선택 메시지 남기기
+      appendUserMessage(question);
+      const response = await apiClient.getFAQAnswer(question);
+      if (response.status === 'success' && response.answer) {
+        // 답변을 채팅 메시지로 추가
+        const assistantMessage: ChatMessage = {
+          id: Date.now().toString(),
+          role: 'assistant',
+          content: response.answer,
+          timestamp: new Date()
+        };
+        setMessages(prev => [...prev, assistantMessage]);
+        
+        // FAQ 패널 제거됨: 패널 닫기 로직 삭제
+        
+        // FAQ 상태 초기화
+        setFaqLevel1Keywords([]);
+        setFaqLevel2Keywords([]);
+        setFaqLevel3Questions([]);
+        setSelectedLevel1('');
+        setSelectedLevel2('');
+        
+        // lvl1 키워드 다시 로드
+        loadFAQLevel1Keywords();
+        
+        toast.success('FAQ 답변을 불러왔습니다.');
+      } else {
+        toast.warning('해당 질문에 대한 답변을 찾을 수 없습니다.');
+      }
+    } catch (error) {
+      console.error('FAQ 답변 로드 실패:', error);
+      // toast.error는 제거 (잠자는 돌콩이 알림창이 대신 표시됨)
+    } finally {
+      setIsLoadingFAQ(false);
+    }
+  };
+
+  // FAQ 뒤로가기 핸들러들
+  const resetToLevel1 = () => {
+    setFaqLevel2Keywords([]);
+    setFaqLevel3Questions([]);
+    setSelectedLevel1('');
+    setSelectedLevel2('');
+  };
+
+  const resetToLevel2 = () => {
+    setFaqLevel3Questions([]);
+    setSelectedLevel2('');
+  };
 
   // 메시지 전송
   const handleSendMessage = async () => {
@@ -88,20 +385,17 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
 
       setMessages(prev => [...prev, assistantMessage]);
       
+      // 답변 품질 확인 및 메일 문의 버튼 표시 여부 결정
+      if (isLowQualityResponse(response.answer)) {
+        setLastUserQuestion(userMessage.content);
+        setLastChatResponse(response.answer);
+      }
+      
     } catch (error: any) {
       console.error('채팅 오류:', error);
       
-      let errorMsg = '알 수 없는 오류가 발생했습니다.';
-      
-      if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
-        errorMsg = '응답 시간이 초과되었습니다. 더 간단한 질문을 시도해보세요.';
-      } else if (error.response?.status === 503) {
-        errorMsg = 'LLM 서비스가 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해주세요.';
-      } else if (error.response?.data?.detail) {
-        errorMsg = error.response.data.detail;
-      } else if (error.message) {
-        errorMsg = error.message;
-      }
+      // API 클라이언트에서 이미 에러 메시지를 처리했으므로 그대로 사용
+      const errorMsg = error.message || '알 수 없는 오류가 발생했습니다.';
       
       const errorMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
@@ -112,11 +406,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
       
       setMessages(prev => [...prev, errorMessage]);
       
-      if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
-        toast.error('응답 시간 초과: 더 간단한 질문을 시도해보세요.');
-      } else {
-        toast.error('채팅 중 오류가 발생했습니다.');
-      }
+      // 토스트는 표시하지 않음 (알림창이 대신 표시됨)
     } finally {
       setIsLoading(false);
     }
@@ -132,214 +422,310 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
 
   // 채팅 기록 삭제
   const clearChat = () => {
-    setMessages([]);
+    setMessages([createGreetingMessage()]);
     toast.info('채팅 기록이 삭제되었습니다.');
   };
 
-  // 점수 색상 결정
-  const getScoreColor = (score: number) => {
-    if (score >= 0.7) return 'text-green-600';
-    if (score >= 0.5) return 'text-yellow-600';
-    return 'text-red-600';
-  };
-
   return (
-    <div className={`flex flex-col h-full bg-white rounded-lg shadow-lg ${className}`}>
-      {/* 헤더 */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-200">
-        <div className="flex items-center space-x-2">
-          <span className="text-xl">🤖</span>
-          <h2 className="text-lg font-semibold text-gray-800">RAG 채팅</h2>
-          <span className="text-sm text-gray-500">
-            (Gemma-2-9B + 문서 검색)
-          </span>
-        </div>
-        
-        <div className="flex items-center space-x-2">
-          <button
-            onClick={() => setShowSettings(!showSettings)}
-            className="p-2 text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-100"
-            title="설정"
-          >
-            ⚙️
-          </button>
-          <button
-            onClick={clearChat}
-            className="p-2 text-gray-500 hover:text-red-600 rounded-lg hover:bg-gray-100"
-            title="채팅 기록 삭제"
-          >
-            🗑️
-          </button>
+    <div className={`dollkong-chat-container dollkong-bg-pattern ${className}`}>
+      {/* 돌콩이 헤더 */}
+      <div className="dollkong-header">
+        <div className="dollkong-fixed mx-auto px-6 w-full flex items-center gap-3">
+          <div className="dollkong-avatar">
+            <img src="/dollkong.png" alt="돌콩이" />
+          </div>
+          <div className="flex-1">
+            <h2 className="text-lg font-bold">돌콩이 AI 어시스턴트</h2>
+            {/* subtitle removed for cleaner UI */}
+          </div>
+          
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setShowSettings(!showSettings)}
+              className="p-2 text-white hover:bg-white hover:bg-opacity-20 rounded-full transition-colors"
+              title="설정"
+            >
+              ⚙️
+            </button>
+            <button
+              onClick={clearChat}
+              className="p-2 text-white hover:bg-white hover:bg-opacity-20 rounded-full transition-colors"
+              title="채팅 기록 삭제"
+            >
+              🗑️
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* 설정 패널 */}
+      {/* 돌콩이 설정 패널 */}
       {showSettings && (
-        <div className="p-4 bg-gray-50 border-b border-gray-200">
-          <div className="space-y-3">
-            <div className="flex items-center space-x-2">
+        <div className="p-6 bg-gradient-to-r from-orange-50 to-blue-50 border-b border-orange-100">
+          <div className="dollkong-fixed mx-auto px-6">
+          <div className="space-y-4">
+            <div className="flex items-center space-x-3">
               <input
                 type="checkbox"
                 id="useContext"
                 checked={useContext}
                 onChange={(e) => setUseContext(e.target.checked)}
-                className="rounded"
+                className="w-4 h-4 text-purple-600 bg-gray-100 border-gray-300 rounded focus:ring-purple-500"
               />
-              <label htmlFor="useContext" className="text-sm text-gray-700">
-                문서 검색 사용
+              <label htmlFor="useContext" className="text-sm font-medium text-gray-700">
+                📚 문서 검색 사용하기
               </label>
             </div>
             
             {useContext && (
-              <>
-                <div className="flex items-center space-x-4">
-                  <div className="flex items-center space-x-2">
-                    <label className="text-sm text-gray-700">최대 검색 결과:</label>
-                    <select
-                      value={maxResults}
-                      onChange={(e) => setMaxResults(Number(e.target.value))}
-                      className="px-2 py-1 text-sm border border-gray-300 rounded"
-                    >
-                      <option value={1}>1개</option>
-                      <option value={3}>3개</option>
-                      <option value={5}>5개</option>
-                      <option value={10}>10개</option>
-                    </select>
-                  </div>
-                  
-                  <div className="flex items-center space-x-2">
-                    <label className="text-sm text-gray-700">최소 점수:</label>
-                    <select
-                      value={scoreThreshold}
-                      onChange={(e) => setScoreThreshold(Number(e.target.value))}
-                      className="px-2 py-1 text-sm border border-gray-300 rounded"
-                    >
-                      <option value={0.1}>0.1 (매우 관대)</option>
-                      <option value={0.3}>0.3 (관대)</option>
-                      <option value={0.5}>0.5 (보통)</option>
-                      <option value={0.7}>0.7 (엄격)</option>
-                    </select>
-                  </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">🔍 최대 검색 결과:</label>
+                  <select
+                    value={maxResults}
+                    onChange={(e) => setMaxResults(Number(e.target.value))}
+                    className="w-full px-3 py-2 text-sm border border-pink-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  >
+                    <option value={1}>1개</option>
+                    <option value={3}>3개</option>
+                    <option value={5}>5개</option>
+                    <option value={10}>10개</option>
+                  </select>
                 </div>
-              </>
+                
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">🎯 최소 점수:</label>
+                  <select
+                    value={scoreThreshold}
+                    onChange={(e) => setScoreThreshold(Number(e.target.value))}
+                    className="w-full px-3 py-2 text-sm border border-pink-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  >
+                    <option value={0.1}>0.1 (매우 관대)</option>
+                    <option value={0.3}>0.3 (관대)</option>
+                    <option value={0.5}>0.5 (보통)</option>
+                    <option value={0.7}>0.7 (엄격)</option>
+                  </select>
+                </div>
+              </div>
             )}
+          </div>
           </div>
         </div>
       )}
 
-      {/* 메시지 목록 */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      
+
+      {/* 돌콩이 메시지 목록 */}
+      <div className="flex-1 overflow-y-auto p-6 space-y-4 dollkong-scrollbar min-h-0">
+        <div className="dollkong-fixed mx-auto px-6">
         {messages.length === 0 ? (
-          <div className="text-center text-gray-500 mt-8">
-            <div className="text-4xl mb-4">🏢</div>
-            <h3 className="text-lg font-semibold text-gray-700 mb-2">사내규정 AI 어시스턴트</h3>
-            <p className="mb-4">업로드된 사내규정 문서를 바탕으로 정확한 답변을 제공합니다.</p>
-            
-            {/* 예시 질문들 */}
-            <div className="max-w-2xl mx-auto">
-              <p className="text-sm font-medium text-gray-600 mb-3">💡 이런 질문을 해보세요:</p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
-                {[
-                  "연차 휴가는 몇 일까지 사용할 수 있나요?",
-                  "출장비 신청 절차는 어떻게 되나요?",
-                  "야근 수당은 어떻게 계산되나요?",
-                  "교육 지원 제도에 대해 알려주세요",
-                  "경조사 휴가 기준은 무엇인가요?",
-                  "보안 규정 위반 시 처벌은 어떻게 되나요?"
-                ].map((question, index) => (
-                  <button
-                    key={index}
-                    onClick={() => setInputMessage(question)}
-                    className="p-2 text-left bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition-colors"
-                  >
-                    "{question}"
-                  </button>
-                ))}
+          <div className="mt-6">
+            <div className="dollkong-message-container">
+              <div className="dollkong-avatar">
+                <img src="/dollkong.png" alt="돌콩이" />
               </div>
+              <div className="dollkong-chat-bubble assistant">
+                <div className="whitespace-pre-wrap">
+                  <div className="text-base md:text-lg font-semibold text-gray-800 mb-2">안녕하세요! 돌콩이에요! 👋</div>
+                  <div className="text-sm md:text-base text-gray-700">
+                    업로드된 사내규정 문서를 바탕으로 정확한 답변을 제공해드릴게요!\n아래 버튼을 누르거나 궁금하신 내용을 직접 입력하세요.
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* FAQ 버튼: 말풍선 아래 배치 */}
+            <div className="dollkong-fixed mx-auto px-6 mt-3">
+              {isLoadingFAQ ? (
+                <div className="flex items-center py-4">
+                  <div className="dollkong-typing-indicator">
+                    <span>FAQ를 불러오는 중...</span>
+                    <div className="dollkong-typing-dots">
+                      <span></span>
+                      <span></span>
+                      <span></span>
+                    </div>
+                  </div>
+                </div>
+              ) : faqLevel3Questions.length > 0 ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm md:text-base font-medium text-gray-700">{selectedLevel2} 관련 질문</p>
+                    <button onClick={resetToLevel2} className="dollkong-faq-button text-xs">← 뒤로가기</button>
+                  </div>
+                  <div className="flex flex-wrap gap-2 md:gap-3">
+                    {faqLevel3Questions.map((question, index) => (
+                      <button
+                        key={index}
+                        onClick={() => handleLevel3Click(question)}
+                        className="dollkong-faq-button text-sm md:text-base px-4 md:px-6 py-2 md:py-3"
+                      >
+                        {getKeywordString(question)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : faqLevel2Keywords.length > 0 ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm md:text-base font-medium text-gray-700">{selectedLevel1} 하위 키워드</p>
+                    <button onClick={resetToLevel1} className="dollkong-faq-button text-xs">← 뒤로가기</button>
+                  </div>
+                  <div className="flex flex-wrap gap-2 md:gap-3">
+                    {faqLevel2Keywords.map((keyword, index) => (
+                      <button
+                        key={index}
+                        onClick={() => handleLevel2Click(keyword)}
+                        className="dollkong-faq-button text-sm md:text-base px-4 md:px-6 py-2 md:py-3"
+                      >
+                        {getKeywordString(keyword)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : faqLevel1Keywords.length > 0 ? (
+                <div className="flex flex-wrap gap-2 md:gap-3">
+                  {faqLevel1Keywords.map((keyword, index) => (
+                    <button
+                      key={index}
+                      onClick={() => handleLevel1Click(keyword)}
+                      className="dollkong-faq-button text-base md:text-lg px-6 md:px-8 py-3 md:py-4"
+                    >
+                      {getKeywordString(keyword)}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </div>
           </div>
         ) : (
-          messages.map((message) => (
+          messages.map((message, idx) => (
             <div
               key={message.id}
-              className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              className={`dollkong-message-container ${message.role === 'user' ? 'user' : ''}`}
             >
-              <div
-                className={`max-w-3xl rounded-lg p-3 ${
-                  message.role === 'user'
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-gray-100 text-gray-800'
-                }`}
-              >
+              {/* 돌콩이 아바타 (assistant만) */}
+              {message.role === 'assistant' && (
+                <div className="dollkong-avatar">
+                  <img src="/dollkong.png" alt="돌콩이" />
+                </div>
+              )}
+              
+              <div className={`dollkong-chat-bubble ${message.role}`}>
                 <div className="whitespace-pre-wrap">{message.content}</div>
-                
-                {/* Assistant 메시지의 추가 정보 */}
-                {message.role === 'assistant' && (
-                  <div className="mt-2 pt-2 border-t border-gray-200">
-                    {/* 처리 시간 */}
-                    {message.processing_time && (
-                      <div className="text-xs text-gray-500 mb-2">
-                        ⏱️ 처리 시간: {message.processing_time.total.toFixed(2)}초 
-                        (검색: {message.processing_time.search.toFixed(2)}초, 
-                        생성: {message.processing_time.generation.toFixed(2)}초)
-                      </div>
-                    )}
-                    
-                    {/* 토큰 사용량 */}
-                    {message.token_usage && (
-                      <div className="text-xs text-gray-500 mb-2">
-                        🔤 토큰: {message.token_usage.total_tokens}개 
-                        (입력: {message.token_usage.prompt_tokens}, 
-                        출력: {message.token_usage.completion_tokens})
-                      </div>
-                    )}
-                    
-                    {/* 참조 문서 */}
-                    {message.context_documents && message.context_documents.length > 0 && (
-                      <div className="mt-2">
-                        <div className="text-xs text-gray-600 mb-1">
-                          📚 참조 문서 ({message.context_documents.length}개):
-                        </div>
-                        <div className="space-y-1">
-                          {message.context_documents.map((doc, index) => (
-                            <div
-                              key={index}
-                              className="text-xs bg-white p-2 rounded border"
+
+                {/* 기본 LLM 답변용 다른 문의하기 버튼 (가장 최근 답변에만) */}
+                {message.role === 'assistant' && !message.faqButtons && message.content !== greetingText && idx === lastAssistantPlainIndex && (
+                  <div className="mt-2">
+                    <button
+                      onClick={handleNewInquiry}
+                      className="dollkong-faq-button text-xs md:text-xs px-2 md:px-3 py-0.5 md:py-1"
+                    >
+                      다른 문의하기
+                    </button>
+                  </div>
+                )}
+                {/* FAQ 선택 버튼 렌더링 */}
+                {message.role === 'assistant' && message.faqButtons && (
+                  <div className="mt-2 flex flex-wrap gap-0.5">
+                    {message.faqButtons.items.map((label, bIdx) => {
+                      const isActive = idx === lastFaqButtonsIndex;
+                      const baseClass = "dollkong-faq-button text-xs md:text-xs px-2 md:px-3 py-0.5 md:py-1";
+                      const disabledClass = " opacity-50 cursor-not-allowed";
+                      return (
+                      <button
+                        key={bIdx}
+                        disabled={!isActive}
+                        onClick={() => {
+                          if (!isActive) return;
+                          if (message.faqButtons?.level === 'lvl1') {
+                            handleLevel1Click(label);
+                          } else if (message.faqButtons?.level === 'lvl2') {
+                            handleLevel2Click(label);
+                          } else {
+                            handleLevel3Click(label);
+                          }
+                        }}
+                        className={baseClass + (isActive ? '' : disabledClass)}
+                      >
+                        {label}
+                      </button>
+                      );
+                    })}
+
+                    {/* 컨트롤 버튼 영역: FAQ 버튼 아래 배치 */}
+                    <div className="flex items-center gap-0.5 w-full mt-2">
+                      {(() => {
+                        const isActive = idx === lastFaqButtonsIndex;
+                        if (!isActive) return null;
+                        if (message.faqButtons?.level === 'lvl2' || message.faqButtons?.level === 'lvl3') {
+                          return (
+                            <button
+                              onClick={() => handleFaqBack(message.faqButtons!.level as 'lvl2' | 'lvl3')}
+                              className="dollkong-faq-button text-xs md:text-xs px-2 md:px-3 py-0.5 md:py-1"
                             >
-                              <div className="font-medium text-gray-700">
-                                📄 {doc.source}
-                              </div>
-                              <div className="text-gray-600 mt-1 line-clamp-2">
-                                {doc.text.substring(0, 100)}...
-                              </div>
-                              <div className="mt-1">
-                                <span className={`font-medium ${getScoreColor(doc.score)}`}>
-                                  관련도: {Math.round(doc.score * 100)}%
-                                </span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                              ← 뒤로가기
+                            </button>
+                          );
+                        }
+                        return null;
+                      })()}
+
+                      {idx === lastFaqButtonsIndex && message.content !== greetingText && (
+                        <button
+                          onClick={handleNewInquiry}
+                          className="dollkong-faq-button text-xs md:text-xs px-2 md:px-3 py-0.5 md:py-1"
+                        >
+                          다른 문의하기
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
                 
-                <div className="text-xs opacity-70 mt-1">
+                {/* 메일 문의 버튼 (assistant 메시지이고 답변 품질이 낮을 때만 표시) */}
+                {message.role === 'assistant' && isLowQualityResponse(message.content) && (
+                  <div className="mt-3 pt-3 border-t border-gray-200">
+                    <button
+                      onClick={() => {
+                        setLastUserQuestion(messages[messages.indexOf(message) - 1]?.content || '');
+                        setLastChatResponse(message.content);
+                        setShowEmailModal(true);
+                      }}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      📧 메일 문의하기
+                    </button>
+                    <p className="text-xs text-gray-500 mt-1">
+                      챗봇이 적절한 답변을 찾지 못했습니다. 담당자에게 직접 문의해보세요.
+                    </p>
+                  </div>
+                )}
+                
+                {/* hidden debug details removed for end users */}
+                
+                <div className="text-xs mt-2 ${message.role === 'user' ? 'text-white text-opacity-80' : 'text-gray-500'}">
                   {message.timestamp.toLocaleTimeString()}
                 </div>
               </div>
             </div>
           ))
         )}
+
         
-        {/* 로딩 인디케이터 */}
+        </div>
+        
+        {/* 돌콩이 타이핑 인디케이터 */}
         {isLoading && (
-          <div className="flex justify-start">
-            <div className="bg-gray-100 rounded-lg p-3">
-              <div className="flex items-center space-x-2">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
-                <span className="text-gray-600">AI가 답변을 생성하고 있습니다...</span>
+          <div className="dollkong-message-container">
+            <div className="dollkong-avatar">
+              <img src="/dollkong.png" alt="돌콩이" />
+            </div>
+            <div className="dollkong-typing-indicator">
+              <span>돌콩이가 답변을 준비하고 있어요...</span>
+              <div className="dollkong-typing-dots">
+                <span></span>
+                <span></span>
+                <span></span>
               </div>
             </div>
           </div>
@@ -348,34 +734,48 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* 입력 영역 */}
-      <div className="border-t border-gray-200 p-4">
-        <div className="flex space-x-2">
-          <textarea
-            ref={inputRef}
-            value={inputMessage}
-            onChange={(e) => setInputMessage(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder="문서에 대한 질문을 입력하세요... (Enter: 전송, Shift+Enter: 줄바꿈)"
-            className="flex-1 resize-none border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[44px] max-h-32"
-            rows={1}
-            disabled={isLoading}
-          />
+      {/* 돌콩이 입력 영역 */}
+      <div className="p-6 bg-gradient-to-r from-orange-50 to-blue-50 border-t border-orange-100 flex-shrink-0">
+        <div className="dollkong-fixed mx-auto px-6 w-full">
+        <div className="flex space-x-3">
+          <div className="dollkong-input-area flex-1">
+            <textarea
+              ref={inputRef}
+              value={inputMessage}
+              onChange={(e) => setInputMessage(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder="돌콩이에게 궁금한 것을 물어보세요! 💬 (Enter: 전송, Shift+Enter: 줄바꿈)"
+              className="w-full resize-none bg-transparent border-none outline-none text-gray-700 placeholder-gray-500 min-h-[44px] max-h-32"
+              rows={1}
+              disabled={isLoading}
+            />
+          </div>
           <button
             onClick={handleSendMessage}
             disabled={!inputMessage.trim() || isLoading}
-            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+            className="dollkong-send-button"
+            title="메시지 전송"
           >
-            {isLoading ? '⏳' : '📤'}
+            {isLoading ? '⏳' : '💌'}
           </button>
         </div>
-        
-        {/* 상태 정보 */}
-        <div className="mt-2 text-xs text-gray-500">
-          {useContext ? '🔍 문서 검색 활성화' : '💭 일반 채팅 모드'} | 
-          모델: Gemma-2-9B
         </div>
+        
+        {/* bottom status removed for cleaner UI */}
       </div>
+
+      {/* 메일 문의 모달 */}
+      <EmailInquiryModal
+        isOpen={showEmailModal}
+        onClose={() => setShowEmailModal(false)}
+        userQuestion={lastUserQuestion}
+        chatResponse={lastChatResponse}
+        chatHistory={messages.map(msg => ({
+          role: msg.role,
+          content: msg.content,
+          timestamp: msg.timestamp
+        }))}
+      />
     </div>
   );
 };

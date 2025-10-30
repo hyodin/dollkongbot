@@ -4,6 +4,8 @@
  */
 
 import axios, { AxiosInstance, AxiosError } from 'axios';
+import { serverStatusManager } from '../utils/serverStatus';
+import { ensureValidAccessToken } from '../utils/tokenManager';
 
 // API 응답 타입 정의
 export interface ApiResponse<T = any> {
@@ -101,6 +103,62 @@ export interface ChatResponse {
   };
 }
 
+// FAQ 관련 인터페이스
+export interface FAQResponse {
+  status: string;
+  data?: string[];
+  message?: string;
+}
+
+export interface FAQAnswerResponse {
+  status: string;
+  answer?: string;
+  message?: string;
+}
+
+// 이메일 관련 인터페이스
+export interface EmailRequest {
+  subject: string;
+  content: string;
+  recipient_email: string;
+  user_question: string;
+  chat_response: string;
+  chat_history: Array<{
+    role: string;
+    content: string;
+    timestamp: Date;
+  }>;
+  user_info?: any;
+  token_info?: any;
+}
+
+export interface EmailResponse {
+  success: boolean;
+  message: string;
+  email?: string;
+}
+
+// 네이버웍스 구성원 검색 관련 인터페이스
+export interface NaverworksUser {
+  userId: string;
+  name: string;
+  email: string;
+  department: string;
+  position: string;
+  profileImageUrl: string;
+}
+
+export interface UserSearchRequest {
+  query: string;
+  limit: number;
+}
+
+export interface UserSearchResponse {
+  success: boolean;
+  users: NaverworksUser[];
+  message: string;
+}
+
 class ApiClient {
   private client: AxiosInstance;
 
@@ -113,10 +171,21 @@ class ApiClient {
       },
     });
 
-    // 요청 인터셉터
+    // 요청 인터셉터 - 토큰 자동 추가
     this.client.interceptors.request.use(
-      (config) => {
+      async (config) => {
         console.log(`API 요청: ${config.method?.toUpperCase()} ${config.url}`);
+
+        try {
+          // 토큰 유효성 확인 및 필요 시 갱신
+          const validToken = await ensureValidAccessToken();
+          if (validToken && config.headers) {
+            config.headers.Authorization = `Bearer ${validToken}`;
+          }
+        } catch (e) {
+          console.error('요청 전 토큰 확인/갱신 중 오류:', e);
+        }
+
         return config;
       },
       (error) => {
@@ -129,16 +198,26 @@ class ApiClient {
     this.client.interceptors.response.use(
       (response) => {
         console.log(`API 응답: ${response.status} ${response.config.url}`);
+        
+        // 성공적인 응답이면 서버가 온라인 상태로 업데이트
+        serverStatusManager.updateStatus(true);
+        
         return response;
       },
       (error: AxiosError) => {
         console.error('API 응답 오류:', error.response?.status, error.message);
+        
+        // 모든 API 에러에 대해 서버 오프라인 상태로 설정
+        serverStatusManager.updateStatus(false, error.message);
         
         // 에러 메시지 정규화
         if (error.response?.data) {
           const errorData = error.response.data as any;
           error.message = errorData.detail || errorData.message || error.message;
         }
+        
+        // 모든 에러에 대해 사용자 친화적 메시지로 변경
+        error.message = serverStatusManager.getServerOfflineMessage();
         
         return Promise.reject(error);
       }
@@ -327,6 +406,83 @@ class ApiClient {
     };
   }> {
     const response = await this.client.get('/chat/health');
+    return response.data;
+  }
+
+  /**
+   * FAQ lvl1 키워드 목록 조회
+   */
+  async getFAQLevel1Keywords(): Promise<FAQResponse> {
+    const response = await this.client.get<FAQResponse>('/faq/lvl1');
+    return response.data;
+  }
+
+  /**
+   * FAQ lvl2 키워드 목록 조회
+   */
+  async getFAQLevel2Keywords(): Promise<FAQResponse> {
+    const response = await this.client.get<FAQResponse>('/faq/lvl2');
+    return response.data;
+  }
+
+  /**
+   * 특정 lvl1 키워드에 속한 lvl2 키워드 목록 조회
+   */
+  async getFAQLevel2ByLevel1(lvl1Keyword: string): Promise<FAQResponse> {
+    const response = await this.client.get<FAQResponse>(`/faq/lvl2/${encodeURIComponent(lvl1Keyword)}`);
+    return response.data;
+  }
+
+  /**
+   * 특정 lvl2 키워드에 속한 lvl3 질문 목록 조회
+   */
+  async getFAQLevel3Questions(lvl2Keyword: string): Promise<FAQResponse> {
+    const response = await this.client.get<FAQResponse>(`/faq/lvl3/${encodeURIComponent(lvl2Keyword)}`);
+    return response.data;
+  }
+
+  /**
+   * 특정 lvl3 질문에 대한 lvl4 답변 조회
+   */
+  async getFAQAnswer(lvl3Question: string): Promise<FAQAnswerResponse> {
+    const response = await this.client.get<FAQAnswerResponse>(`/faq/answer/${encodeURIComponent(lvl3Question)}`);
+    return response.data;
+  }
+
+  /**
+   * 문의 메일 발송
+   */
+  async sendInquiryEmail(request: EmailRequest): Promise<EmailResponse> {
+    const response = await this.client.post<EmailResponse>('/send-email', request);
+    return response.data;
+  }
+
+  /**
+   * 이메일 서비스 상태 확인
+   */
+  async checkEmailHealth(): Promise<{
+    status: string;
+    service: string;
+    config: any;
+    token_status: any;
+    admin_email: string;
+    sender_email: string;
+    api_available: boolean;
+    smtp_available: boolean;
+    message: string;
+  }> {
+    const response = await this.client.get('/email/health');
+    return response.data;
+  }
+
+  /**
+   * 네이버웍스 구성원 검색
+   */
+  async searchNaverworksUsers(query: string, limit: number = 10): Promise<UserSearchResponse> {
+    const response = await this.client.post<UserSearchResponse>('/auth/naverworks/users/search', {
+      query,
+      limit
+    });
     return response.data;
   }
 }

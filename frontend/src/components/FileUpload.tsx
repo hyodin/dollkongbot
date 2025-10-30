@@ -25,10 +25,10 @@ const FileUpload: React.FC<FileUploadProps> = ({
 
   // 지원되는 파일 형식
   const acceptedFileTypes = {
-    'application/pdf': ['.pdf'],
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+    // 'application/pdf': ['.pdf'],
+    // 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
-    'text/plain': ['.txt'],
+    // 'text/plain': ['.txt'],
   };
 
   const maxFileSize = 10 * 1024 * 1024; // 10MB
@@ -89,15 +89,9 @@ const FileUpload: React.FC<FileUploadProps> = ({
     } catch (error: any) {
       console.error('파일 업로드 오류:', error);
       
-      let errorMessage = '파일 업로드 중 오류가 발생했습니다.';
+      // API 클라이언트에서 이미 에러 메시지를 처리했으므로 그대로 사용
+      // toast.error는 제거 (잠자는 돌콩이 알림창이 대신 표시됨)
       
-      if (error.message) {
-        errorMessage = error.message;
-      } else if (error.response?.data?.detail) {
-        errorMessage = error.response.data.detail;
-      }
-      
-      toast.error(errorMessage);
       setUploadProgress(0);
     } finally {
       setIsUploading(false);
@@ -208,22 +202,22 @@ const FileUpload: React.FC<FileUploadProps> = ({
           지원되는 파일 형식
         </h4>
         <div className="grid grid-cols-2 gap-2 text-sm text-gray-600">
-          <div className="flex items-center space-x-2">
+          {/* <div className="flex items-center space-x-2">
             <span className="w-2 h-2 bg-red-500 rounded-full"></span>
             <span>PDF 문서</span>
           </div>
           <div className="flex items-center space-x-2">
             <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
             <span>Word 문서 (.docx)</span>
-          </div>
+          </div> */}
           <div className="flex items-center space-x-2">
             <span className="w-2 h-2 bg-green-500 rounded-full"></span>
             <span>Excel 파일 (.xlsx)</span>
           </div>
-          <div className="flex items-center space-x-2">
+          {/* <div className="flex items-center space-x-2">
             <span className="w-2 h-2 bg-gray-500 rounded-full"></span>
             <span>텍스트 파일 (.txt)</span>
-          </div>
+          </div> */}
         </div>
       </div>
 

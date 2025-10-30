@@ -86,6 +86,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
     } catch (error: any) {
       console.error('검색 오류:', error);
       
+      // API 클라이언트에서 이미 에러 메시지를 처리했으므로 그대로 사용
       const errorMessage = error.message || '검색 중 오류가 발생했습니다.';
       
       if (onSearchError) {

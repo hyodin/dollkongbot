@@ -5,9 +5,9 @@
 
 import logging
 from io import BytesIO
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
-from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks
+from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks, Header, Depends
 from fastapi.responses import JSONResponse
 
 from utils.file_parser import FileParser
@@ -15,6 +15,7 @@ from services.safe_preprocessor import get_safe_preprocessor
 from services.chunker import get_chunker
 from services.embedder import get_embedder
 from services.vector_db import get_vector_db
+from routers.auth import verify_admin
 
 logger = logging.getLogger(__name__)
 
@@ -24,17 +25,22 @@ router = APIRouter()
 @router.post("/upload")
 async def upload_file(
     background_tasks: BackgroundTasks,
-    file: UploadFile = File(...)
+    file: UploadFile = File(...),
+    authorization: Optional[str] = Header(None)
 ) -> Dict[str, Any]:
     """
-    파일 업로드 및 벡터화 처리
+    파일 업로드 및 벡터화 처리 (관리자 전용)
     
     Args:
         file: 업로드할 파일 (PDF, DOCX, XLSX, TXT)
+        authorization: Bearer 토큰 (관리자 인증)
         
     Returns:
         업로드 결과 정보
     """
+    # 관리자 권한 확인
+    await verify_admin(authorization)
+    
     try:
         # 1. 파일 유효성 검사
         await _validate_file(file)
@@ -69,16 +75,23 @@ async def upload_file(
 
 
 @router.post("/upload-sync")
-async def upload_file_sync(file: UploadFile = File(...)) -> Dict[str, Any]:
+async def upload_file_sync(
+    file: UploadFile = File(...),
+    authorization: Optional[str] = Header(None)
+) -> Dict[str, Any]:
     """
-    파일 업로드 및 동기 처리 (테스트용)
+    파일 업로드 및 동기 처리 (테스트용, 관리자 전용)
     
     Args:
         file: 업로드할 파일
+        authorization: Bearer 토큰 (관리자 인증)
         
     Returns:
         처리 결과
     """
+    # 관리자 권한 확인
+    await verify_admin(authorization)
+    
     try:
         # 1. 파일 유효성 검사
         await _validate_file(file)
@@ -134,16 +147,38 @@ async def _process_file(file_content: bytes, file_name: str) -> Dict[str, Any]:
         # 1. 파일 형식 확인
         file_ext = "." + file_name.lower().split('.')[-1]
         
-        # 2. 데이터 추출 (XLSX vs 기타)
+        # 2. 데이터 추출 (XLSX, PDF vs 기타)
         logger.info(f"데이터 추출 시작: {file_name}")
         extracted_data = await FileParser.extract_text(file_content, file_name)
         
-        if file_ext == '.xlsx':
-            # XLSX: 구조화된 셀 데이터 처리
-            if not extracted_data or not isinstance(extracted_data, list):
-                raise ValueError("XLSX 파일에서 셀 데이터를 추출할 수 없습니다")
+        if file_ext in ['.xlsx', '.pdf', '.docx'] and isinstance(extracted_data, list):
+            # XLSX, PDF, DOCX: 구조화된 데이터 처리
+            if not extracted_data:
+                raise ValueError(f"{file_ext.upper()} 파일에서 구조화된 데이터를 추출할 수 없습니다")
             
-            logger.info(f"XLSX 셀 데이터 추출 완료: {len(extracted_data)} 개 셀")
+            logger.info(f"{file_ext.upper()} 구조화 데이터 추출 완료: {len(extracted_data)} 개 항목")
+            
+            # 파일별 구조 분석 로깅
+            if file_ext == '.pdf':
+                logger.info("PDF 표 구조 분석:")
+                lvl1_count = sum(1 for item in extracted_data if item.get('lvl1'))
+                lvl2_count = sum(1 for item in extracted_data if item.get('lvl2'))
+                lvl3_count = sum(1 for item in extracted_data if item.get('lvl3'))
+                lvl4_count = sum(1 for item in extracted_data if item.get('lvl4'))
+                logger.info(f"  - lvl1 항목: {lvl1_count}개")
+                logger.info(f"  - lvl2 항목: {lvl2_count}개")
+                logger.info(f"  - lvl3 항목: {lvl3_count}개")
+                logger.info(f"  - lvl4 항목: {lvl4_count}개")
+            elif file_ext == '.docx':
+                logger.info("DOCX 문서 구조 분석:")
+                lvl1_count = sum(1 for item in extracted_data if item.get('lvl1'))
+                lvl2_count = sum(1 for item in extracted_data if item.get('lvl2'))
+                lvl3_count = sum(1 for item in extracted_data if item.get('lvl3'))
+                lvl4_count = sum(1 for item in extracted_data if item.get('lvl4'))
+                logger.info(f"  - lvl1 항목 (조항): {lvl1_count}개")
+                logger.info(f"  - lvl2 항목 (소항목): {lvl2_count}개")
+                logger.info(f"  - lvl3 항목 (세부항목): {lvl3_count}개")
+                logger.info(f"  - lvl4 항목 (내용): {lvl4_count}개")
             
             # RAG 챗봇에 최적화된 텍스트 생성
             chunks = []
@@ -152,8 +187,9 @@ async def _process_file(file_content: bytes, file_name: str) -> Dict[str, Any]:
             
             for cell_data in extracted_data:
                 # 1. 검색(임베딩)용 텍스트 생성 - 핵심 정보만
-                if cell_data['col_header'] and cell_data['col_header'] != f"Column{cell_data['col'][0]}":
-                    search_text = f"{cell_data['col_header']}: {cell_data['value']}"
+                header = cell_data.get('col_header', cell_data.get('header', ''))
+                if header and header not in ['텍스트', ''] and not header.startswith('Column'):
+                    search_text = f"{header}: {cell_data['value']}"
                 else:
                     search_text = cell_data['value']
                 
@@ -183,15 +219,18 @@ async def _process_file(file_content: bytes, file_name: str) -> Dict[str, Any]:
                         hierarchy_info.append(f"소분류: {cell_data['lvl3']}")
                     context_parts.append(f"분류 체계: {' > '.join(hierarchy_info)}")
                 
-                # 셀 정보 추가
-                context_parts.append(f"{cell_data['col_header']}: {cell_data['value']}")
+                # 셀/항목 정보 추가
+                if header:
+                    context_parts.append(f"{header}: {cell_data['value']}")
+                else:
+                    context_parts.append(cell_data['value'])
                 
                 # 상세 내용 추가 (lvl4)
                 if cell_data.get('lvl4'):
                     context_parts.append(f"상세 내용: {cell_data['lvl4']}")
                 
                 # 행 컨텍스트 추가
-                if cell_data['row_context']:
+                if cell_data.get('row_context'):
                     context_parts.append(f"관련 정보: {cell_data['row_context']}")
                 
                 context_text = " | ".join(context_parts)
@@ -200,12 +239,12 @@ async def _process_file(file_content: bytes, file_name: str) -> Dict[str, Any]:
                 metadata = {
                     "search_text": search_text,
                     "context_text": context_text,
-                    "sheet_name": cell_data['sheet'],
-                    "cell_address": cell_data['cell_address'],
-                    "col_header": cell_data['col_header'],
-                    "is_numeric": cell_data['is_numeric'],
-                    "row": cell_data['row'],
-                    "col": cell_data['col'],
+                    "sheet_name": cell_data.get('sheet', cell_data.get('page', '')),
+                    "cell_address": cell_data.get('cell_address', f"Page{cell_data.get('page', 1)}_Row{cell_data.get('row', 1)}"),
+                    "col_header": header,
+                    "is_numeric": cell_data.get('is_numeric', False),
+                    "row": cell_data.get('row', 1),
+                    "col": cell_data.get('col', 1),
                     # 계층형 컬럼 추가
                     "lvl1": cell_data.get('lvl1', ''),
                     "lvl2": cell_data.get('lvl2', ''),
@@ -320,8 +359,20 @@ async def get_documents() -> Dict[str, Any]:
 
 
 @router.delete("/documents/{file_id}")
-async def delete_document(file_id: str) -> Dict[str, Any]:
-    """문서 삭제"""
+async def delete_document(
+    file_id: str,
+    authorization: Optional[str] = Header(None)
+) -> Dict[str, Any]:
+    """
+    문서 삭제 (관리자 전용)
+    
+    Args:
+        file_id: 삭제할 문서 ID
+        authorization: Bearer 토큰 (관리자 인증)
+    """
+    # 관리자 권한 확인
+    await verify_admin(authorization)
+    
     try:
         vector_db = get_vector_db()
         
