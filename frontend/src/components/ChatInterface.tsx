@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { toast } from 'react-toastify';
 import apiClient from '../api/client';
 import EmailInquiryModal from './EmailInquiryModal';
@@ -8,6 +8,10 @@ interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
+  faqButtons?: {
+    level: 'lvl1' | 'lvl2' | 'lvl3';
+    items: string[];
+  };
   context_documents?: ContextDocument[];
   processing_time?: {
     total: number;
@@ -55,7 +59,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
   const [selectedLevel1, setSelectedLevel1] = useState<string>('');
   const [selectedLevel2, setSelectedLevel2] = useState<string>('');
   const [isLoadingFAQ, setIsLoadingFAQ] = useState(false);
-  const [showFAQ, setShowFAQ] = useState(false);
   
   // 메일 문의 관련 상태
   const [showEmailModal, setShowEmailModal] = useState(false);
@@ -65,9 +68,48 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
+  // 초기 인사 텍스트 및 생성 함수
+  const greetingText = '안녕하세요! 돌콩이에요! 👋\n업로드된 사내규정 문서를 바탕으로 정확한 답변을 제공해드릴게요!\n아래 버튼을 누르거나 궁금하신 내용을 직접 입력하세요.';
+  const createGreetingMessage = (): ChatMessage => ({
+    id: `greet-${Date.now()}`,
+    role: 'assistant',
+    content: greetingText,
+    timestamp: new Date()
+  });
+
   // 헬퍼 함수: 키워드 문자열 추출 (객체 또는 문자열 모두 처리)
   const getKeywordString = (item: string | FAQKeyword): string => {
     return typeof item === 'string' ? item : item.keyword;
+  };
+
+  // 헬퍼 함수: 사용자 선택을 채팅 히스토리에 남김
+  const appendUserMessage = (text: string) => {
+    const userMessage: ChatMessage = {
+      id: `${Date.now()}-u`,
+      role: 'user',
+      content: `${text} 선택`,
+      timestamp: new Date()
+    };
+    setMessages(prev => [...prev, userMessage]);
+  };
+
+  // 헬퍼 함수: 어시스턴트 목록 메시지(버튼 포함) 전송
+  const sendAssistantListMessage = (
+    heading: string,
+    items: (string | FAQKeyword)[],
+    level: 'lvl2' | 'lvl3'
+  ) => {
+    const assistantMessage: ChatMessage = {
+      id: Date.now().toString(),
+      role: 'assistant',
+      content: heading,
+      timestamp: new Date(),
+      faqButtons: {
+        level,
+        items: items.map((it) => getKeywordString(it))
+      }
+    };
+    setMessages(prev => [...prev, assistantMessage]);
   };
 
   // 답변 품질 판단 함수
@@ -105,6 +147,23 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
     loadFAQLevel1Keywords();
   }, []);
 
+  // 가장 최근 FAQ 버튼이 포함된 메시지 인덱스 (이전 히스토리의 버튼은 비활성화)
+  const lastFaqButtonsIndex = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i] as any;
+      if (m.role === 'assistant' && m.faqButtons && m.faqButtons.items?.length) return i;
+    }
+    return -1;
+  }, [messages]);
+
+  // 초기 인사 메시지를 채팅 히스토리에 추가 (앱 시작 시 한 번)
+  useEffect(() => {
+    if (messages.length === 0) {
+      setMessages([createGreetingMessage()]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // FAQ lvl1 키워드 로드 함수
   const loadFAQLevel1Keywords = async () => {
     try {
@@ -112,6 +171,19 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
       const response = await apiClient.getFAQLevel1Keywords();
       if (response.status === 'success' && response.data) {
         setFaqLevel1Keywords(response.data);
+        // 첫 인사 말풍선에 lvl1 버튼 부착
+        setMessages(prev => {
+          if (prev.length === 0) return prev;
+          const first = prev[0];
+          const updatedFirst: ChatMessage = {
+            ...first,
+            faqButtons: {
+              level: 'lvl1',
+              items: (response.data ?? []).map((it: any) => getKeywordString(it))
+            }
+          };
+          return [updatedFirst, ...prev.slice(1)];
+        });
       } else {
         setFaqLevel1Keywords([]);
       }
@@ -129,6 +201,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
     const keyword = getKeywordString(item);
     try {
       setIsLoadingFAQ(true);
+      // 사용자 선택 메시지 남기기
+      appendUserMessage(keyword);
       setSelectedLevel1(keyword);
       const response = await apiClient.getFAQLevel2ByLevel1(keyword);
       if (response.status === 'success' && response.data) {
@@ -136,6 +210,12 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
         // 이전 단계 상태 초기화
         setFaqLevel3Questions([]);
         setSelectedLevel2('');
+        // 어시스턴트 메시지로 lvl2 키워드 버튼 제공
+        if (response.data.length > 0) {
+          sendAssistantListMessage(`다음 하위 키워드를 선택해 주세요`, response.data, 'lvl2');
+        } else {
+          toast.info(`'${keyword}' 주제에 등록된 하위 키워드가 없습니다.`);
+        }
       } else {
         setFaqLevel2Keywords([]);
         toast.info(`'${keyword}' 주제에 등록된 하위 키워드가 없습니다.`);
@@ -154,10 +234,19 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
     const keyword = getKeywordString(item);
     try {
       setIsLoadingFAQ(true);
+      // 사용자 선택 메시지 남기기
+      appendUserMessage(keyword);
       setSelectedLevel2(keyword);
       const response = await apiClient.getFAQLevel3Questions(keyword);
       if (response.status === 'success' && response.data) {
         setFaqLevel3Questions(response.data);
+        // 어시스턴트 메시지로 lvl3 질문 버튼 제공
+        if (response.data.length > 0) {
+          sendAssistantListMessage(`아래 질문 중에서 선택해 주세요 ("${keyword}"):
+`, response.data, 'lvl3');
+        } else {
+          toast.info(`'${keyword}' 주제에 등록된 질문이 없습니다.`);
+        }
       } else {
         setFaqLevel3Questions([]);
         toast.info(`'${keyword}' 주제에 등록된 질문이 없습니다.`);
@@ -176,6 +265,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
     const question = getKeywordString(item);
     try {
       setIsLoadingFAQ(true);
+      // 사용자 선택 메시지 남기기
+      appendUserMessage(question);
       const response = await apiClient.getFAQAnswer(question);
       if (response.status === 'success' && response.answer) {
         // 답변을 채팅 메시지로 추가
@@ -187,8 +278,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
         };
         setMessages(prev => [...prev, assistantMessage]);
         
-        // FAQ 패널 닫기 (채팅 중 FAQ 사용 시)
-        setShowFAQ(false);
+        // FAQ 패널 제거됨: 패널 닫기 로직 삭제
         
         // FAQ 상태 초기화
         setFaqLevel1Keywords([]);
@@ -298,7 +388,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
 
   // 채팅 기록 삭제
   const clearChat = () => {
-    setMessages([]);
+    setMessages([createGreetingMessage()]);
     toast.info('채팅 기록이 삭제되었습니다.');
   };
 
@@ -316,25 +406,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
           </div>
           
           <div className="flex items-center space-x-2">
-            <button
-              onClick={() => {
-                setShowFAQ(!showFAQ);
-                if (!showFAQ) {
-                  // FAQ 패널 열 때마다 lvl1 키워드로 초기화
-                  setFaqLevel2Keywords([]);
-                  setFaqLevel3Questions([]);
-                  setSelectedLevel1('');
-                  setSelectedLevel2('');
-                  if (faqLevel1Keywords.length === 0) {
-                    loadFAQLevel1Keywords();
-                  }
-                }
-              }}
-              className="p-2 text-white hover:bg-white hover:bg-opacity-20 rounded-full transition-colors"
-              title="FAQ 보기"
-            >
-              💡
-            </button>
             <button
               onClick={() => setShowSettings(!showSettings)}
               className="p-2 text-white hover:bg-white hover:bg-opacity-20 rounded-full transition-colors"
@@ -407,138 +478,32 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
         </div>
       )}
 
-      {/* FAQ 패널 (채팅 중에도 표시 가능) */}
-      {showFAQ && (
-        <div className="p-6 bg-gradient-to-r from-purple-50 to-pink-50 border-b border-purple-100">
-          <div className="dollkong-fixed mx-auto px-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-gray-800">💡 자주 묻는 질문 (FAQ)</h3>
-              <button
-                onClick={() => setShowFAQ(false)}
-                className="p-2 text-gray-600 hover:bg-white hover:bg-opacity-50 rounded-full transition-colors"
-                title="FAQ 닫기"
-              >
-                ✕
-              </button>
-            </div>
-            
-            {isLoadingFAQ ? (
-              <div className="flex justify-center items-center py-8">
-                <div className="dollkong-typing-indicator">
-                  <div className="dollkong-avatar">
-                    <img src="/dollkong.png" alt="돌콩이" />
-                  </div>
-                  <span>FAQ를 불러오는 중...</span>
-                  <div className="dollkong-typing-dots">
-                    <span></span>
-                    <span></span>
-                    <span></span>
-                  </div>
-                </div>
-              </div>
-            ) : faqLevel3Questions.length > 0 ? (
-              // lvl3 질문 목록 표시
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <p className="text-lg font-medium text-gray-700">
-                    {selectedLevel2} 관련 질문
-                  </p>
-                  <button
-                    onClick={resetToLevel2}
-                    className="dollkong-faq-button text-sm"
-                  >
-                    ← 뒤로가기
-                  </button>
-                </div>
-                <div className="flex flex-wrap gap-3">
-                  {faqLevel3Questions.map((question, index) => (
-                    <button
-                      key={index}
-                      onClick={() => {
-                        const questionStr = getKeywordString(question);
-                        setInputMessage(questionStr);
-                        setShowFAQ(false);
-                        inputRef.current?.focus();
-                      }}
-                      className="dollkong-faq-button text-base px-6 py-3"
-                    >
-                      {getKeywordString(question)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : faqLevel2Keywords.length > 0 ? (
-              // lvl2 키워드 목록 표시
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <p className="text-lg font-medium text-gray-700">
-                    {selectedLevel1} 하위 키워드
-                  </p>
-                  <button
-                    onClick={resetToLevel1}
-                    className="dollkong-faq-button text-sm"
-                  >
-                    ← 뒤로가기
-                  </button>
-                </div>
-                <div className="flex flex-wrap gap-3">
-                  {faqLevel2Keywords.map((keyword, index) => (
-                    <button
-                      key={index}
-                      onClick={() => handleLevel2Click(keyword)}
-                      className="dollkong-faq-button text-base px-6 py-3"
-                    >
-                      {getKeywordString(keyword)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : faqLevel1Keywords.length > 0 ? (
-              // lvl1 키워드 목록 표시
-              <div className="flex flex-wrap gap-3 justify-center">
-                {faqLevel1Keywords.map((keyword, index) => (
-                  <button
-                    key={index}
-                    onClick={() => handleLevel1Click(keyword)}
-                    className="dollkong-faq-button text-lg px-8 py-4"
-                  >
-                    {getKeywordString(keyword)}
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <div className="dollkong-avatar mx-auto mb-4">
-                  <img src="/dollkong.png" alt="돌콩이" />
-                </div>
-                <p className="text-gray-500 text-lg">등록된 FAQ가 없어요 😅</p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      
 
       {/* 돌콩이 메시지 목록 */}
       <div className="flex-1 overflow-y-auto p-6 space-y-4 dollkong-scrollbar min-h-0">
         <div className="dollkong-fixed mx-auto px-6">
         {messages.length === 0 ? (
-          <div className="text-center text-gray-600 mt-12">
-            <div className="dollkong-avatar mx-auto mb-6" style={{width: '80px', height: '80px'}}>
-              <img src="/dollkong.png" alt="돌콩이" />
+          <div className="mt-6">
+            <div className="dollkong-message-container">
+              <div className="dollkong-avatar">
+                <img src="/dollkong.png" alt="돌콩이" />
+              </div>
+              <div className="dollkong-chat-bubble assistant">
+                <div className="whitespace-pre-wrap">
+                  <div className="text-base md:text-lg font-semibold text-gray-800 mb-2">안녕하세요! 돌콩이에요! 👋</div>
+                  <div className="text-sm md:text-base text-gray-700">
+                    업로드된 사내규정 문서를 바탕으로 정확한 답변을 제공해드릴게요!\n아래 버튼을 누르거나 궁금하신 내용을 직접 입력하세요.
+                  </div>
+                </div>
+              </div>
             </div>
-            <h3 className="text-2xl font-bold text-gray-800 mb-3">안녕하세요! 돌콩이에요! 👋</h3>
-            <p className="text-lg text-gray-600 mb-8">업로드된 사내규정 문서를 바탕으로 정확한 답변을 제공해드릴게요!</p>
-            
-            {/* FAQ 키워드 영역 */}
-            <div className="w-full dollkong-fixed mx-auto px-4">
-              <p className="text-lg font-medium text-gray-700 mb-6">💡 사내규정 관련 궁금한 주제를 선택해보세요:</p>
-              
+
+            {/* FAQ 버튼: 말풍선 아래 배치 */}
+            <div className="dollkong-fixed mx-auto px-6 mt-3">
               {isLoadingFAQ ? (
-                <div className="flex justify-center items-center py-8">
+                <div className="flex items-center py-4">
                   <div className="dollkong-typing-indicator">
-                    <div className="dollkong-avatar">
-                      <img src="/dollkong.png" alt="돌콩이" />
-                    </div>
                     <span>FAQ를 불러오는 중...</span>
                     <div className="dollkong-typing-dots">
                       <span></span>
@@ -548,25 +513,17 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
                   </div>
                 </div>
               ) : faqLevel3Questions.length > 0 ? (
-                // lvl3 질문 목록 표시
-                <div className="space-y-4">
+                <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <p className="text-lg font-medium text-gray-700">
-                      {selectedLevel2} 관련 질문
-                    </p>
-                    <button
-                      onClick={resetToLevel2}
-                      className="dollkong-faq-button text-sm"
-                    >
-                      ← 뒤로가기
-                    </button>
+                    <p className="text-sm md:text-base font-medium text-gray-700">{selectedLevel2} 관련 질문</p>
+                    <button onClick={resetToLevel2} className="dollkong-faq-button text-xs">← 뒤로가기</button>
                   </div>
-                  <div className="flex flex-wrap gap-3">
+                  <div className="flex flex-wrap gap-2 md:gap-3">
                     {faqLevel3Questions.map((question, index) => (
                       <button
                         key={index}
                         onClick={() => handleLevel3Click(question)}
-                        className="dollkong-faq-button text-base px-6 py-3"
+                        className="dollkong-faq-button text-sm md:text-base px-4 md:px-6 py-2 md:py-3"
                       >
                         {getKeywordString(question)}
                       </button>
@@ -574,25 +531,17 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
                   </div>
                 </div>
               ) : faqLevel2Keywords.length > 0 ? (
-                // lvl2 키워드 목록 표시
-                <div className="space-y-4">
+                <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <p className="text-lg font-medium text-gray-700">
-                      {selectedLevel1} 하위 키워드
-                    </p>
-                    <button
-                      onClick={resetToLevel1}
-                      className="dollkong-faq-button text-sm"
-                    >
-                      ← 뒤로가기
-                    </button>
+                    <p className="text-sm md:text-base font-medium text-gray-700">{selectedLevel1} 하위 키워드</p>
+                    <button onClick={resetToLevel1} className="dollkong-faq-button text-xs">← 뒤로가기</button>
                   </div>
-                  <div className="flex flex-wrap gap-3">
+                  <div className="flex flex-wrap gap-2 md:gap-3">
                     {faqLevel2Keywords.map((keyword, index) => (
                       <button
                         key={index}
                         onClick={() => handleLevel2Click(keyword)}
-                        className="dollkong-faq-button text-base px-6 py-3"
+                        className="dollkong-faq-button text-sm md:text-base px-4 md:px-6 py-2 md:py-3"
                       >
                         {getKeywordString(keyword)}
                       </button>
@@ -600,13 +549,12 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
                   </div>
                 </div>
               ) : faqLevel1Keywords.length > 0 ? (
-                // lvl1 키워드 목록 표시
-                <div className="flex flex-wrap gap-3 justify-center">
+                <div className="flex flex-wrap gap-2 md:gap-3">
                   {faqLevel1Keywords.map((keyword, index) => (
                     <button
                       key={index}
                       onClick={() => handleLevel1Click(keyword)}
-                      className="dollkong-faq-button text-lg px-8 py-4"
+                      className="dollkong-faq-button text-base md:text-lg px-6 md:px-8 py-3 md:py-4"
                     >
                       {getKeywordString(keyword)}
                     </button>
@@ -616,7 +564,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
             </div>
           </div>
         ) : (
-          messages.map((message) => (
+          messages.map((message, idx) => (
             <div
               key={message.id}
               className={`dollkong-message-container ${message.role === 'user' ? 'user' : ''}`}
@@ -630,6 +578,35 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
               
               <div className={`dollkong-chat-bubble ${message.role}`}>
                 <div className="whitespace-pre-wrap">{message.content}</div>
+                {/* FAQ 선택 버튼 렌더링 */}
+                {message.role === 'assistant' && message.faqButtons && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {message.faqButtons.items.map((label, bIdx) => {
+                      const isActive = idx === lastFaqButtonsIndex;
+                      const baseClass = "dollkong-faq-button text-xs md:text-sm px-3 md:px-4 py-1 md:py-2";
+                      const disabledClass = " opacity-50 cursor-not-allowed";
+                      return (
+                      <button
+                        key={bIdx}
+                        disabled={!isActive}
+                        onClick={() => {
+                          if (!isActive) return;
+                          if (message.faqButtons?.level === 'lvl1') {
+                            handleLevel1Click(label);
+                          } else if (message.faqButtons?.level === 'lvl2') {
+                            handleLevel2Click(label);
+                          } else {
+                            handleLevel3Click(label);
+                          }
+                        }}
+                        className={baseClass + (isActive ? '' : disabledClass)}
+                      >
+                        {label}
+                      </button>
+                      );
+                    })}
+                  </div>
+                )}
                 
                 {/* 메일 문의 버튼 (assistant 메시지이고 답변 품질이 낮을 때만 표시) */}
                 {message.role === 'assistant' && isLowQualityResponse(message.content) && (
@@ -659,6 +636,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
             </div>
           ))
         )}
+
+        
         </div>
         
         {/* 돌콩이 타이핑 인디케이터 */}
