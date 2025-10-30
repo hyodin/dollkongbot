@@ -77,6 +77,35 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
     timestamp: new Date()
   });
 
+  // FAQ 내비게이션: 뒤로가기
+  const handleFaqBack = (level: 'lvl2' | 'lvl3') => {
+    if (level === 'lvl3') {
+      // lvl3 -> lvl2 목록으로
+      resetToLevel2();
+      if (faqLevel2Keywords.length > 0) {
+        sendAssistantListMessage(`${selectedLevel1} 하위 키워드로 돌아왔어요:`, faqLevel2Keywords, 'lvl2');
+      }
+    } else if (level === 'lvl2') {
+      // lvl2 -> lvl1 목록으로
+      resetToLevel1();
+      if (faqLevel1Keywords.length > 0) {
+        sendAssistantListMessage(`주제를 다시 선택해 주세요:`, faqLevel1Keywords, 'lvl1');
+      }
+    }
+  };
+
+  // FAQ 초기화: 다른 문의하기
+  const handleNewInquiry = () => {
+    resetToLevel1();
+    const greeting = createGreetingMessage();
+    const lvl1Items = faqLevel1Keywords.map((it) => getKeywordString(it));
+    const greetingWithButtons: ChatMessage = {
+      ...greeting,
+      faqButtons: { level: 'lvl1', items: lvl1Items }
+    };
+    setMessages(prev => [...prev, greetingWithButtons]);
+  };
+
   // 헬퍼 함수: 키워드 문자열 추출 (객체 또는 문자열 모두 처리)
   const getKeywordString = (item: string | FAQKeyword): string => {
     return typeof item === 'string' ? item : item.keyword;
@@ -97,7 +126,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
   const sendAssistantListMessage = (
     heading: string,
     items: (string | FAQKeyword)[],
-    level: 'lvl2' | 'lvl3'
+    level: 'lvl1' | 'lvl2' | 'lvl3'
   ) => {
     const assistantMessage: ChatMessage = {
       id: Date.now().toString(),
@@ -242,8 +271,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
         setFaqLevel3Questions(response.data);
         // 어시스턴트 메시지로 lvl3 질문 버튼 제공
         if (response.data.length > 0) {
-          sendAssistantListMessage(`아래 질문 중에서 선택해 주세요 ("${keyword}"):
-`, response.data, 'lvl3');
+          sendAssistantListMessage(`다음 하위 키워드를 선택해 주세요`, response.data, 'lvl3');
         } else {
           toast.info(`'${keyword}' 주제에 등록된 질문이 없습니다.`);
         }
@@ -580,10 +608,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
                 <div className="whitespace-pre-wrap">{message.content}</div>
                 {/* FAQ 선택 버튼 렌더링 */}
                 {message.role === 'assistant' && message.faqButtons && (
-                  <div className="mt-3 flex flex-wrap gap-2">
+                  <div className="mt-2 flex flex-wrap gap-0.5">
                     {message.faqButtons.items.map((label, bIdx) => {
                       const isActive = idx === lastFaqButtonsIndex;
-                      const baseClass = "dollkong-faq-button text-xs md:text-sm px-3 md:px-4 py-1 md:py-2";
+                      const baseClass = "dollkong-faq-button text-xs md:text-xs px-2 md:px-3 py-0.5 md:py-1";
                       const disabledClass = " opacity-50 cursor-not-allowed";
                       return (
                       <button
@@ -605,6 +633,34 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
                       </button>
                       );
                     })}
+
+                    {/* 컨트롤 버튼 영역: FAQ 버튼 아래 배치 */}
+                    <div className="flex items-center gap-0.5 w-full mt-2">
+                      {(() => {
+                        const isActive = idx === lastFaqButtonsIndex;
+                        if (!isActive) return null;
+                        if (message.faqButtons?.level === 'lvl2' || message.faqButtons?.level === 'lvl3') {
+                          return (
+                            <button
+                              onClick={() => handleFaqBack(message.faqButtons!.level as 'lvl2' | 'lvl3')}
+                              className="dollkong-faq-button text-xs md:text-xs px-2 md:px-3 py-0.5 md:py-1"
+                            >
+                              ← 뒤로가기
+                            </button>
+                          );
+                        }
+                        return null;
+                      })()}
+
+                      {idx === lastFaqButtonsIndex && message.content !== greetingText && (
+                        <button
+                          onClick={handleNewInquiry}
+                          className="dollkong-faq-button text-xs md:text-xs px-2 md:px-3 py-0.5 md:py-1"
+                        >
+                          다른 문의하기
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
                 

@@ -247,22 +247,41 @@
 .dollkong-typing-dots span:nth-child(2) { animation-delay: -0.16s; }
 
 .dollkong-faq-button {
-  background: #f3f6ef;
-  border: 2px solid #e2e8d8;
-  border-radius: 20px;
-  padding: 8px 16px;
-  margin: 4px;
-  color: #3f4a3f;
-  font-size: 14px;
+  background: linear-gradient(180deg, #f6f9f2 0%, #eef5e6 100%);
+  border: 1px solid #dce8cf;
+  border-radius: 12px; /* less rounded */
+  padding: 4px 10px; /* smaller */
+  margin: 1px; /* even tighter spacing */
+  color: #2f3a2f;
+  font-size: 12px; /* smaller */
   cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 8px rgba(53, 71, 60, 0.12);
+  transition: transform .15s ease, box-shadow .2s ease, background-color .2s ease, border-color .2s ease;
+  box-shadow: 0 1px 4px rgba(53, 71, 60, 0.10);
+  backdrop-filter: saturate(120%);
 }
 
 .dollkong-faq-button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 18px rgba(53, 71, 60, 0.16);
-  background: #e6efdb;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(53, 71, 60, 0.18);
+  background: linear-gradient(180deg, #f1f7ea 0%, #e7f0dd 100%);
+  border-color: #cfe0c1;
+}
+
+.dollkong-faq-button:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(53, 71, 60, 0.16) inset;
+}
+
+.dollkong-faq-button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(93,184,90,0.25);
+}
+
+.dollkong-faq-button:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 .dollkong-header {
