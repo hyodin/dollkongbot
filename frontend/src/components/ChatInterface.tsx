@@ -83,14 +83,11 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
       // lvl3 -> lvl2 목록으로
       resetToLevel2();
       if (faqLevel2Keywords.length > 0) {
-        sendAssistantListMessage(`${selectedLevel1} 하위 키워드로 돌아왔어요:`, faqLevel2Keywords, 'lvl2');
+        sendAssistantListMessage(`${selectedLevel1} 하위 키워드로 돌아왔어요`, faqLevel2Keywords, 'lvl2');
       }
     } else if (level === 'lvl2') {
-      // lvl2 -> lvl1 목록으로
-      resetToLevel1();
-      if (faqLevel1Keywords.length > 0) {
-        sendAssistantListMessage(`주제를 다시 선택해 주세요:`, faqLevel1Keywords, 'lvl1');
-      }
+      // lvl2 -> 초기 인사로 회귀 (lvl1 초기화 포함)
+      handleNewInquiry();
     }
   };
 
@@ -184,6 +181,15 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
     }
     return -1;
   }, [messages]);
+
+  // 최신 일반 어시스턴트 답변(FAQ 목록/인사 제외) 인덱스
+  const lastAssistantPlainIndex = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i] as any;
+      if (m.role === 'assistant' && !m.faqButtons && m.content !== greetingText) return i;
+    }
+    return -1;
+  }, [messages, greetingText]);
 
   // 초기 인사 메시지를 채팅 히스토리에 추가 (앱 시작 시 한 번)
   useEffect(() => {
@@ -606,6 +612,18 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
               
               <div className={`dollkong-chat-bubble ${message.role}`}>
                 <div className="whitespace-pre-wrap">{message.content}</div>
+
+                {/* 기본 LLM 답변용 다른 문의하기 버튼 (가장 최근 답변에만) */}
+                {message.role === 'assistant' && !message.faqButtons && message.content !== greetingText && idx === lastAssistantPlainIndex && (
+                  <div className="mt-2">
+                    <button
+                      onClick={handleNewInquiry}
+                      className="dollkong-faq-button text-xs md:text-xs px-2 md:px-3 py-0.5 md:py-1"
+                    >
+                      다른 문의하기
+                    </button>
+                  </div>
+                )}
                 {/* FAQ 선택 버튼 렌더링 */}
                 {message.role === 'assistant' && message.faqButtons && (
                   <div className="mt-2 flex flex-wrap gap-0.5">
