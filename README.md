@@ -41,6 +41,15 @@ Backend (FastAPI)
    질문 → 벡터 검색 → 관련 문서 추출 → Gemini Pro → 답변 생성
    ```
 
+## 📦 배포 가이드
+
+프로덕션 서버에 배포하려면 **[배포 가이드 문서](./DEPLOYMENT_GUIDE.md)**를 참고하세요.
+
+- Rocky Linux 9.6 배포 방법
+- systemd 서비스 설정
+- Apache 프록시 설정
+- 포트 및 방화벽 구성
+
 ## 🚀 빠른 시작
 
 ### 1. 환경 요구사항
