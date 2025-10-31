@@ -10,7 +10,7 @@ openpyxl==3.1.2
 python-multipart==0.0.6
 
 # Korean NLP
-kiwipiepy==0.15.2
+kiwipiepy>=0.17.1
 sentence-transformers==2.7.0
 huggingface_hub==0.24.0
 kss==4.5.4
