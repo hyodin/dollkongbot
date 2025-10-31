@@ -15,8 +15,8 @@ BACKEND_DIR="$PROJECT_DIR/backend"
 FRONTEND_DIR="$PROJECT_DIR/frontend"
 SERVICE_FILE="/etc/systemd/system/dollkongbot-backend.service"
 NGINX_CONF="/etc/nginx/conf.d/dollkongbot.conf"
-USER = "hyojin"
-GROUP = "LAB"
+USER="hyojin"
+GROUP="LAB"
 
 
 # 사용자 확인
