@@ -43,6 +43,12 @@ fi
 echo "2단계: 백엔드 설정..."
 cd "$BACKEND_DIR"
 
+# 기존 가상환경 삭제 (Python 버전이 다를 수 있음)
+if [ -d "venv" ]; then
+    echo "기존 가상환경을 삭제하고 Python 3.11로 재생성합니다... $(python --version)"
+    rm -rf venv
+fi
+
 # 가상환경 확인 및 생성
 if [ ! -d "venv" ]; then
     echo "Python 가상환경 생성 중..."
