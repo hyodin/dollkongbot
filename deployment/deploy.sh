@@ -17,7 +17,7 @@ SERVICE_FILE="/etc/systemd/system/dollkongbot-backend.service"
 NGINX_CONF="/etc/nginx/conf.d/dollkongbot.conf"
 USER="hyojin"
 GROUP="LAB"
-
+PYTHON_CMD="python3.11"
 
 # 사용자 확인
 if [ "$EUID" -eq 0 ]; then 
@@ -46,17 +46,18 @@ cd "$BACKEND_DIR"
 # 가상환경 확인 및 생성
 if [ ! -d "venv" ]; then
     echo "Python 가상환경 생성 중..."
-    python3 -m venv venv
+    $PYTHON_CMD -m venv venv
 fi
+
 
 echo "가상환경 활성화 및 패키지 설치 중..."
 source venv/bin/activate
 
+# 가상환경 내 Python 버전 확인
+echo "가상환경 Python 버전: $(python --version)"
+
 echo "pip 최신화..."
 pip install --upgrade pip setuptools wheel
-
-echo "빌드 의존성 먼저 설치 (numpy)..."
-pip install numpy
 
 pip install -r requirements.txt
 
