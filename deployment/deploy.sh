@@ -51,7 +51,13 @@ fi
 
 echo "가상환경 활성화 및 패키지 설치 중..."
 source venv/bin/activate
-pip install --upgrade pip
+
+echo "pip 최신화..."
+pip install --upgrade pip setuptools wheel
+
+echo "빌드 의존성 먼저 설치 (numpy)..."
+pip install numpy
+
 pip install -r requirements.txt
 
 # .env 파일 확인
