@@ -16,7 +16,7 @@ huggingface_hub==0.24.0
 kss==4.5.4
 
 # Vector database
-qdrant-client==1.12.0
+qdrant-client==1.11.3  # Python 3.12 완전 지원 버전
 
 # ML and data processing
 torch==2.1.1
