@@ -10,11 +10,14 @@ echo "채팅봇 배포 스크립트 시작"
 echo "========================================="
 
 # 변수 설정
-PROJECT_DIR="/opt/chatbot"
+PROJECT_DIR="/opt/dollkongbot"
 BACKEND_DIR="$PROJECT_DIR/backend"
 FRONTEND_DIR="$PROJECT_DIR/frontend"
-SERVICE_FILE="/etc/systemd/system/chatbot-backend.service"
-NGINX_CONF="/etc/nginx/conf.d/chatbot.conf"
+SERVICE_FILE="/etc/systemd/system/dollkongbot-backend.service"
+NGINX_CONF="/etc/nginx/conf.d/dollkongbot.conf"
+USER = "hyojin"
+GROUP = "LAB"
+
 
 # 사용자 확인
 if [ "$EUID" -eq 0 ]; then 
@@ -22,11 +25,19 @@ if [ "$EUID" -eq 0 ]; then
     exit 1
 fi
 
-echo "1단계: 프로젝트 디렉토리 확인..."
+echo "1단계: 프로젝트 디렉토리 확인 및 Git clone..."
 if [ ! -d "$PROJECT_DIR" ]; then
-    echo "프로젝트 디렉토리를 생성합니다: $PROJECT_DIR"
+    echo "프로젝트 디렉토리가 없습니다. Git clone 진행..."
     sudo mkdir -p "$PROJECT_DIR"
-    sudo chown $USER:$USER "$PROJECT_DIR"
+    sudo chown $USER:$GROUP "$PROJECT_DIR"
+
+    cd /opt
+    git clone https://github.com/hyodin/dollkongbot.git "$(basename $PROJECT_DIR)"
+else
+    echo "프로젝트 디렉토리가 이미 존재합니다."
+    cd "$PROJECT_DIR"
+    echo "최신 상태로 업데이트 중..."
+    git pull origin master  # 마스터 브랜치 기준
 fi
 
 echo "2단계: 백엔드 설정..."
