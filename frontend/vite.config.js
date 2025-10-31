@@ -26,7 +26,7 @@ export default defineConfig({
     }
   },
   build: {
-    outDir: 'dist',
+    outDir: '/opt/dollkongbot/frontend/dist',
     sourcemap: true
   }
 })
