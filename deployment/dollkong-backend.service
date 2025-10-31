@@ -1,0 +1,26 @@
+[Unit]
+Description=dollkongbot Backend (FastAPI)
+After=network.target qdrant.service
+Requires=network.target
+
+[Service]
+Type=simple
+User=hyojin
+Group=LAB
+WorkingDirectory=/opt/dollkongbot/backend
+Environment="PATH=/opt/dollkongbot/backend/venv/bin"
+EnvironmentFile=/opt/dollkongbot/backend/.env
+ExecStart=/opt/dollkongbot/backend/venv/bin/python main.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=dollkongbot-backend
+
+# 리소스 제한 (선택사항)
+LimitNOFILE=65535
+LimitNPROC=4096
+
+[Install]
+WantedBy=multi-user.target
+
