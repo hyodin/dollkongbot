@@ -307,168 +307,218 @@ npm run build
 **빌드 완료 후:**
 - `frontend/dist/` 디렉토리에 정적 파일이 생성됩니다.
 
-### 3.2 Apache 설정 (프론트엔드 서빙 + 백엔드 프록시)
+### 3.2 Nginx 설정 (프론트엔드 서빙 + 백엔드 프록시)
 
 **경로 변수 확인:**
 배포 경로에 따라 아래 설정의 경로를 수정하세요:
 - `/opt/chatbot` 사용 시: `/opt/chatbot/frontend/dist`
 - `/var/www/chatbot` 사용 시: `/var/www/chatbot/frontend/dist`
+- `~/chatbot` 사용 시: `~/chatbot/frontend/dist`
 
 ```bash
-sudo nano /etc/httpd/conf.d/chatbot.conf
+sudo nano /etc/nginx/conf.d/chatbot.conf
 ```
 
-**Apache 설정 파일 내용:**
+**Nginx 설정 파일 내용:**
 
-```apache
-# 채팅봇 프론트엔드 및 백엔드 프록시 설정
+```nginx
+# 채팅봇 프론트엔드 및 백엔드 프록시 설정 (Nginx)
 
-# 프론트엔드 정적 파일 서빙 및 백엔드 API 프록시
-<VirtualHost *:80>
-    ServerName chatbot.yourcompany.com  # 또는 기존 도메인의 서브경로 사용
+# HTTP 서버 설정 (80 포트)
+server {
+    listen 80;
+    server_name chatbot.yourcompany.com;  # 또는 기존 도메인
+    
+    # 클라이언트 최대 요청 크기 (파일 업로드용)
+    client_max_body_size 10M;
     
     # 프론트엔드 정적 파일 디렉토리
-    DocumentRoot /opt/chatbot/frontend/dist
-    
-    <Directory /opt/chatbot/frontend/dist>
-        Options -Indexes +FollowSymLinks
-        AllowOverride All
-        Require all granted
-        
-        # React Router를 위한 설정
-        RewriteEngine On
-        RewriteBase /
-        RewriteRule ^index\.html$ - [L]
-        RewriteCond %{REQUEST_FILENAME} !-f
-        RewriteCond %{REQUEST_FILENAME} !-d
-        RewriteRule . /index.html [L]
-    </Directory>
-    
-    # 백엔드 API 프록시
-    ProxyPreserveHost On
-    ProxyRequests Off
-    
-    # /api 경로를 백엔드로 프록시
-    ProxyPass /api http://localhost:8088/api
-    ProxyPassReverse /api http://localhost:8088/api
-    
-    # /chat, /auth, /admin 경로도 백엔드로 프록시
-    ProxyPass /chat http://localhost:8088/chat
-    ProxyPassReverse /chat http://localhost:8088/chat
-    
-    ProxyPass /auth http://localhost:8088/auth
-    ProxyPassReverse /auth http://localhost:8088/auth
-    
-    ProxyPass /admin http://localhost:8088/admin
-    ProxyPassReverse /admin http://localhost:8088/admin
-    
-    # 웹소켓 지원 (필요한 경우)
-    RewriteEngine On
-    RewriteCond %{HTTP:Upgrade} websocket [NC]
-    RewriteCond %{HTTP:Connection} upgrade [NC]
-    RewriteRule ^/ws/(.*) ws://localhost:8088/ws/$1 [P,L]
+    root /opt/chatbot/frontend/dist;
+    index index.html;
     
     # 로그 설정
-    ErrorLog /var/log/httpd/chatbot_error.log
-    CustomLog /var/log/httpd/chatbot_access.log combined
-</VirtualHost>
-
-# HTTPS 설정 (선택사항, SSL 인증서가 있는 경우)
-<VirtualHost *:443>
-    ServerName chatbot.yourcompany.com
+    access_log /var/log/nginx/chatbot_access.log;
+    error_log /var/log/nginx/chatbot_error.log;
     
-    # SSL 인증서 설정
-    SSLEngine on
-    SSLCertificateFile /etc/ssl/certs/your-cert.crt
-    SSLCertificateKeyFile /etc/ssl/private/your-key.key
-    SSLCertificateChainFile /etc/ssl/certs/your-chain.crt
+    # Gzip 압축 활성화
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css text/xml text/javascript application/x-javascript application/xml+rss application/json application/javascript;
     
-    # 프론트엔드 정적 파일
-    DocumentRoot /opt/chatbot/frontend/dist
+    # React Router를 위한 설정 (SPA 라우팅 지원)
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
     
-    <Directory /opt/chatbot/frontend/dist>
-        Options -Indexes +FollowSymLinks
-        AllowOverride All
-        Require all granted
-        
-        RewriteEngine On
-        RewriteBase /
-        RewriteRule ^index\.html$ - [L]
-        RewriteCond %{REQUEST_FILENAME} !-f
-        RewriteCond %{REQUEST_FILENAME} !-d
-        RewriteRule . /index.html [L]
-    </Directory>
+    # 정적 파일 캐싱 설정
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        access_log off;
+    }
     
     # 백엔드 API 프록시
-    ProxyPreserveHost On
-    ProxyPass /api http://localhost:8088/api
-    ProxyPassReverse /api http://localhost:8088/api
-    ProxyPass /chat http://localhost:8088/chat
-    ProxyPassReverse /chat http://localhost:8088/chat
-    ProxyPass /auth http://localhost:8088/auth
-    ProxyPassReverse /auth http://localhost:8088/auth
-    ProxyPass /admin http://localhost:8088/admin
-    ProxyPassReverse /admin http://localhost:8088/admin
+    location /api {
+        proxy_pass http://localhost:8088/api;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 75s;
+    }
     
-    ErrorLog /var/log/httpd/chatbot_ssl_error.log
-    CustomLog /var/log/httpd/chatbot_ssl_access.log combined
-</VirtualHost>
+    # 채팅 API 프록시
+    location /chat {
+        proxy_pass http://localhost:8088/chat;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 75s;
+    }
+    
+    # 인증 API 프록시
+    location /auth {
+        proxy_pass http://localhost:8088/auth;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 75s;
+    }
+    
+    # 관리자 API 프록시
+    location /admin {
+        proxy_pass http://localhost:8088/admin;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 75s;
+    }
+    
+    # 헬스체크 프록시
+    location /health {
+        proxy_pass http://localhost:8088/health;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        access_log off;
+    }
+    
+    # 보안 헤더
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+}
+
+# HTTPS 설정 (443 포트) - SSL 인증서가 있는 경우
+server {
+    listen 443 ssl http2;
+    server_name chatbot.yourcompany.com;
+    
+    # SSL 인증서 설정
+    ssl_certificate /etc/ssl/certs/your-cert.crt;
+    ssl_certificate_key /etc/ssl/private/your-key.key;
+    
+    # SSL 프로토콜 및 암호화 설정
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache shared:SSL:10m;
+    
+    # 프론트엔드 정적 파일
+    root /opt/chatbot/frontend/dist;
+    index index.html;
+    
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+    
+    # API 프록시 (위와 동일)
+    location /api {
+        proxy_pass http://localhost:8088/api;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+    
+    # (나머지 location 블록들...)
+}
 ```
 
-**Apache 모듈 활성화:**
+**Nginx 설치 및 설정:**
 
 ```bash
-# 필요한 Apache 모듈 활성화
-sudo dnf install -y httpd
-sudo systemctl enable httpd
+# Nginx 설치
+sudo dnf install -y nginx
 
-# 프록시 모듈 활성화
-sudo a2enmod proxy
-sudo a2enmod proxy_http
-sudo a2enmod rewrite
-sudo a2enmod headers
-sudo a2enmod ssl  # HTTPS 사용 시
+# Nginx 활성화 및 시작
+sudo systemctl enable nginx
+sudo systemctl start nginx
 
-# 설정 테스트
-sudo httpd -t
+# 설정 파일 테스트
+sudo nginx -t
 
-# Apache 재시작
-sudo systemctl restart httpd
+# Nginx 재시작
+sudo systemctl restart nginx
 
-# Apache 상태 확인
-sudo systemctl status httpd
+# Nginx 상태 확인
+sudo systemctl status nginx
 ```
 
-### 3.3 기존 Apache 설정과 통합 (서브경로 방식)
+### 3.3 기존 Nginx 설정과 통합 (서브경로 방식)
 
 기존 회사 홈페이지와 같은 도메인에서 `/chatbot` 경로로 접근하려면:
 
-```apache
-# 기존 Apache 설정 파일에 추가
-# 예: /etc/httpd/conf.d/vhost.conf
+```nginx
+# 기존 Nginx 설정 파일에 추가
+# 예: /etc/nginx/conf.d/vhost.conf 또는 /etc/nginx/nginx.conf
 
 # 채팅봇 프론트엔드 (서브경로)
-Alias /chatbot /opt/chatbot/frontend/dist
-
-<Directory /opt/chatbot/frontend/dist>
-    Options -Indexes +FollowSymLinks
-    AllowOverride All
-    Require all granted
-    
-    RewriteEngine On
-    RewriteBase /chatbot
-    RewriteRule ^chatbot/index\.html$ - [L]
-    RewriteCond %{REQUEST_FILENAME} !-f
-    RewriteCond %{REQUEST_FILENAME} !-d
-    RewriteRule ^chatbot/(.*) /chatbot/index.html [L]
-</Directory>
+location /chatbot {
+    alias /opt/chatbot/frontend/dist;
+    index index.html;
+    try_files $uri $uri/ /chatbot/index.html;
+}
 
 # 채팅봇 백엔드 API 프록시
-ProxyPass /chatbot/api http://localhost:8088/api
-ProxyPassReverse /chatbot/api http://localhost:8088/api
+location /chatbot/api {
+    proxy_pass http://localhost:8088/api;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
 
-ProxyPass /chatbot/chat http://localhost:8088/chat
-ProxyPassReverse /chatbot/chat http://localhost:8088/chat
+location /chatbot/chat {
+    proxy_pass http://localhost:8088/chat;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection 'upgrade';
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_cache_bypass $http_upgrade;
+}
 ```
 
 **프론트엔드 빌드 시 경로 설정:**
@@ -621,9 +671,9 @@ sudo journalctl -u chatbot-backend.service -f
 # 또는 백엔드 로그 파일
 tail -f /opt/chatbot/backend/app.log
 
-# Apache 로그
-tail -f /var/log/httpd/chatbot_access.log
-tail -f /var/log/httpd/chatbot_error.log
+# Nginx 로그
+tail -f /var/log/nginx/chatbot_access.log
+tail -f /var/log/nginx/chatbot_error.log
 ```
 
 ---
@@ -645,14 +695,17 @@ python main.py
 ### 프론트엔드가 표시되지 않을 때
 
 ```bash
-# Apache 에러 로그 확인
-tail -f /var/log/httpd/chatbot_error.log
+# Nginx 에러 로그 확인
+tail -f /var/log/nginx/chatbot_error.log
 
 # 파일 권한 확인
 ls -la /opt/chatbot/frontend/dist
 
-# Apache 설정 테스트
-sudo httpd -t
+# Nginx 설정 테스트
+sudo nginx -t
+
+# Nginx 재시작
+sudo systemctl restart nginx
 ```
 
 ### Qdrant 연결 오류
@@ -697,7 +750,7 @@ sudo lsof -i :8088
 ### 중요 파일 경로
 - 백엔드 설정: `{PROJECT_ROOT}/backend/.env`
 - systemd 서비스: `/etc/systemd/system/chatbot-backend.service`
-- Apache 설정: `/etc/httpd/conf.d/chatbot.conf`
+- Nginx 설정: `/etc/nginx/conf.d/chatbot.conf`
 - 프론트엔드 빌드: `{PROJECT_ROOT}/frontend/dist/`
 
 **💡 선택 기준:**
@@ -774,8 +827,8 @@ npm run dev
    - `/etc/systemd/system/chatbot-backend.service` 파일 생성
    - `WorkingDirectory=~/chatbot/backend` 또는 `/opt/chatbot/backend` 설정
 
-2. **Apache 웹 서버 설정**
-   - `/etc/httpd/conf.d/chatbot.conf` 파일 생성
+2. **Nginx 웹 서버 설정**
+   - `/etc/nginx/conf.d/chatbot.conf` 파일 생성
    - 프론트엔드 경로: `~/chatbot/frontend/dist` 또는 `/opt/chatbot/frontend/dist`
 
 3. **방화벽 포트 개방**
@@ -803,7 +856,7 @@ ls -la ~/chatbot/frontend/dist/
 - [ ] systemd 서비스 생성 및 활성화
 - [ ] 백엔드 서비스 실행 중 (`systemctl status`)
 - [ ] 프론트엔드 빌드 완료 (`dist/` 디렉토리 존재)
-- [ ] Apache 설정 완료 및 재시작
+- [ ] Nginx 설정 완료 및 재시작
 - [ ] Qdrant 연결 확인
 - [ ] 방화벽 포트 개방 (필요한 경우)
 - [ ] 브라우저에서 프론트엔드 접근 가능

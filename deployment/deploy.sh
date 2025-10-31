@@ -14,7 +14,7 @@ PROJECT_DIR="/opt/chatbot"
 BACKEND_DIR="$PROJECT_DIR/backend"
 FRONTEND_DIR="$PROJECT_DIR/frontend"
 SERVICE_FILE="/etc/systemd/system/chatbot-backend.service"
-APACHE_CONF="/etc/httpd/conf.d/chatbot.conf"
+NGINX_CONF="/etc/nginx/conf.d/chatbot.conf"
 
 # 사용자 확인
 if [ "$EUID" -eq 0 ]; then 
@@ -76,22 +76,22 @@ else
     echo "systemd 서비스 파일이 이미 존재합니다."
 fi
 
-echo "5단계: Apache 설정..."
-if [ ! -f "$APACHE_CONF" ]; then
-    echo "Apache 설정 파일을 생성합니다."
-    sudo cp "$PROJECT_DIR/deployment/apache-chatbot.conf" "$APACHE_CONF"
-    echo "⚠️  Apache 설정 파일을 확인하고 수정하세요:"
-    echo "   sudo nano $APACHE_CONF"
+echo "5단계: Nginx 설정..."
+if [ ! -f "$NGINX_CONF" ]; then
+    echo "Nginx 설정 파일을 생성합니다."
+    sudo cp "$PROJECT_DIR/deployment/nginx-chatbot.conf" "$NGINX_CONF"
+    echo "⚠️  Nginx 설정 파일을 확인하고 수정하세요:"
+    echo "   sudo nano $NGINX_CONF"
+    echo "   특히 server_name과 경로를 확인하세요."
 else
-    echo "Apache 설정 파일이 이미 존재합니다."
+    echo "Nginx 설정 파일이 이미 존재합니다."
 fi
 
-# Apache 모듈 활성화
-echo "Apache 모듈 활성화 중..."
-sudo a2enmod proxy proxy_http rewrite headers ssl 2>/dev/null || {
-    echo "Apache 모듈 활성화 (수동):"
-    echo "sudo systemctl enable httpd"
-    echo "sudo a2enmod proxy proxy_http rewrite headers"
+# Nginx 설정 테스트
+echo "Nginx 설정 테스트 중..."
+sudo nginx -t 2>/dev/null || {
+    echo "⚠️  Nginx 설정 테스트 실패. 설정 파일을 확인하세요:"
+    echo "   sudo nginx -t"
 }
 
 echo "========================================="
@@ -107,20 +107,21 @@ echo "2. systemd 서비스 파일 수정:"
 echo "   sudo nano $SERVICE_FILE"
 echo "   (User=, Group= 수정)"
 echo ""
-echo "3. Apache 설정 파일 확인:"
-echo "   sudo nano $APACHE_CONF"
+echo "3. Nginx 설정 파일 확인:"
+echo "   sudo nano $NGINX_CONF"
+echo "   특히 server_name, root 경로, proxy_pass를 확인하세요."
 echo ""
 echo "4. systemd 서비스 활성화 및 시작:"
 echo "   sudo systemctl daemon-reload"
 echo "   sudo systemctl enable chatbot-backend.service"
 echo "   sudo systemctl start chatbot-backend.service"
 echo ""
-echo "5. Apache 재시작:"
-echo "   sudo httpd -t  # 설정 테스트"
-echo "   sudo systemctl restart httpd"
+echo "5. Nginx 재시작:"
+echo "   sudo nginx -t  # 설정 테스트"
+echo "   sudo systemctl restart nginx"
 echo ""
 echo "6. 서비스 상태 확인:"
 echo "   sudo systemctl status chatbot-backend.service"
-echo "   sudo systemctl status httpd"
+echo "   sudo systemctl status nginx"
 echo ""
 
