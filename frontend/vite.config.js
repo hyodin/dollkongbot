@@ -20,19 +20,20 @@ export default defineConfig(({ mode }) => {
       port: 3005,
       proxy: isDev ? {
         // 개발 환경에서만 프록시 사용
-        '/api/dollkongbot/': {
-          target: env.VITE_PROXY_TARGET || 'http://127.0.0.1:5000/',
+        '/api/dollkongbot': {
+          target: env.VITE_PROXY_TARGET || 'http://127.0.0.1:5000',
           changeOrigin: true,
           secure: false,
+          rewrite: (path) => path.replace(/^\/api\/dollkongbot/, ''),
           configure: (proxy, _options) => {
             proxy.on('error', (err, _req, _res) => {
-              console.log('proxy error', err);
+              console.log('[Proxy] Error:', err.message);
             });
             proxy.on('proxyReq', (proxyReq, req, _res) => {
-              console.log('Sending Request to the Target:', req.method, req.url);
+              console.log('[Proxy] Request:', req.method, req.url, '→', proxyReq.path);
             });
             proxy.on('proxyRes', (proxyRes, req, _res) => {
-              console.log('Received Response from the Target:', proxyRes.statusCode, req.url);
+              console.log('[Proxy] Response:', proxyRes.statusCode, req.url);
             });
           },
         }

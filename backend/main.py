@@ -274,6 +274,39 @@ app.include_router(admin.router, tags=["관리자"])
 app.include_router(email.router, tags=["이메일"])
 
 
+# ngrok OAuth 콜백 리다이렉트 엔드포인트
+@app.get("/dollkongbot/")
+async def ngrok_callback_redirect(code: str = None, state: str = None, error: str = None):
+    """
+    ngrok URL로 OAuth 콜백을 받으면 localhost로 리다이렉트
+    
+    Args:
+        code: OAuth authorization code
+        state: OAuth state parameter
+        error: OAuth error (있는 경우)
+    
+    Returns:
+        localhost로 리다이렉트 응답
+    """
+    from fastapi.responses import RedirectResponse
+    
+    if code and state:
+        # OAuth 콜백 - localhost로 리다이렉트 (code, state 유지)
+        localhost_url = f"http://localhost:3005/dollkongbot/?code={code}&state={state}"
+        logger.info(f"[ngrok 콜백] localhost로 리다이렉트: {localhost_url}")
+        return RedirectResponse(url=localhost_url)
+    elif error:
+        # OAuth 에러 - localhost로 리다이렉트 (error 유지)
+        localhost_url = f"http://localhost:3005/dollkongbot/?error={error}"
+        logger.info(f"[ngrok 콜백 에러] localhost로 리다이렉트: {localhost_url}")
+        return RedirectResponse(url=localhost_url)
+    else:
+        # 일반 접근 - localhost로 리다이렉트
+        localhost_url = "http://localhost:3005/dollkongbot/"
+        logger.info(f"[ngrok 접근] localhost로 리다이렉트: {localhost_url}")
+        return RedirectResponse(url=localhost_url)
+
+
 # 루트 엔드포인트
 @app.get("/")
 async def root():
