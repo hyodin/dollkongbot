@@ -28,7 +28,9 @@ export default defineConfig({
     allowedHosts: ['www.yncsmart.com', 'yncsmart.com']
   },
   build: {
-    outDir: '/opt/dollkongbot/frontend/dist',
-    sourcemap: true
+    outDir: 'dist',
+    sourcemap: true,
+    // public 폴더의 파일들이 dist 루트로 복사됨 (기본 동작)
+    emptyOutDir: true
   }
 })
