@@ -77,7 +77,6 @@ const FileUpload: React.FC<FileUploadProps> = ({
 
       if (response.status === 'success') {
         setUploadedFile(file.name);
-        toast.success(`파일 업로드 성공: ${file.name}`);
         
         if (onUploadSuccess) {
           onUploadSuccess(response);
