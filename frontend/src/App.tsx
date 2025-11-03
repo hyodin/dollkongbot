@@ -81,7 +81,7 @@ function MainApp() {
 
       if (code && state === 'naverworks_auth') {
         try {
-          const response = await fetch('/api/auth/naverworks/callback', {
+          const response = await fetch('/api/dollkongbot/auth/naverworks/callback', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

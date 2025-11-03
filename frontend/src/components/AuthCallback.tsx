@@ -83,7 +83,7 @@ const AuthCallback: React.FC<AuthCallbackProps> = ({ onLoginSuccess }) => {
         setHasProcessed(true);
 
         // 백엔드로 토큰 교환 요청 (정리된 코드 사용)
-        const response = await fetch('/api/auth/naverworks/callback', {
+        const response = await fetch('/api/dollkongbot/auth/naverworks/callback', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
