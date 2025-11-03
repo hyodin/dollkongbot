@@ -24,6 +24,7 @@ export interface SearchResult {
     upload_time: string;
     chunk_index: number;
     file_id: string;
+    sheet_name?: string;
   };
 }
 

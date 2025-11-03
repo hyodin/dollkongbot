@@ -3,12 +3,16 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import NaverWorksLogin from './NaverWorksLogin';
 
 interface NaverWorksUser {
   id: string;
-  name: string;
+  name: string | {
+    lastName?: string;
+    firstName?: string;
+    phoneticLastName?: string;
+    phoneticFirstName?: string;
+  };
   email: string;
   profile_image?: string;
 }
@@ -19,9 +23,8 @@ interface LoginGuardProps {
 
 const LoginGuard: React.FC<LoginGuardProps> = ({ children }) => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [user, setUser] = useState<NaverWorksUser | null>(null);
+  const [user, setUser] = useState<NaverWorksUser | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
-  const navigate = useNavigate();
 
   // 인증 상태 확인
   useEffect(() => {
@@ -54,7 +57,7 @@ const LoginGuard: React.FC<LoginGuardProps> = ({ children }) => {
 
   // 로그아웃 처리
   const handleLogout = () => {
-    setUser(null);
+    setUser(undefined);
     setIsLoggedIn(false);
   };
 

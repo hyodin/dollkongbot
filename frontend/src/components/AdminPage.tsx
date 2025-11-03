@@ -326,7 +326,7 @@ const AdminPage: React.FC = () => {
               </div>
             ) : (
               <div className="space-y-3">
-                {filteredData.map((faq, filteredIndex) => {
+                {filteredData.map((faq, _filteredIndex) => {
                   const originalIndex = faqData.findIndex(f => f.keyword === faq.keyword);
                   const isSelected = selectedItems.has(faq.keyword);
                   const isDragging = draggedIndex === originalIndex;

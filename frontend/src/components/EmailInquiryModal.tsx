@@ -115,10 +115,10 @@ const EmailInquiryModal: React.FC<EmailInquiryModalProps> = ({
     setSearchResults([]);
   };
 
-  // 수신자 제거
-  const removeRecipient = (userId: string) => {
-    setSelectedRecipients(prev => prev.filter(recipient => recipient.value !== userId));
-  };
+  // 수신자 제거 (향후 사용 예정)
+  // const removeRecipient = (userId: string) => {
+  //   setSelectedRecipients(prev => prev.filter(recipient => recipient.value !== userId));
+  // };
 
   // 메일 템플릿 자동 생성
   const generateEmailTemplate = () => {

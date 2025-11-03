@@ -126,41 +126,41 @@ const ResultList: React.FC<ResultListProps> = ({
     return 'text-gray-600';
   };
 
-  // 파일 형식 아이콘
-  const getFileIcon = (fileType: string) => {
-    switch (fileType.toLowerCase()) {
-      case '.pdf':
-        return (
-          <svg className="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M4 18h12V6h-4V2H4v16zm-2 1V1h12l4 4v14H2z"/>
-          </svg>
-        );
-      case '.docx':
-        return (
-          <svg className="w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M4 18h12V6h-4V2H4v16zm-2 1V1h12l4 4v14H2z"/>
-          </svg>
-        );
-      case '.xlsx':
-        return (
-          <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M4 18h12V6h-4V2H4v16zm-2 1V1h12l4 4v14H2z"/>
-          </svg>
-        );
-      case '.txt':
-        return (
-          <svg className="w-5 h-5 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M4 18h12V6h-4V2H4v16zm-2 1V1h12l4 4v14H2z"/>
-          </svg>
-        );
-      default:
-        return (
-          <svg className="w-5 h-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M4 18h12V6h-4V2H4v16zm-2 1V1h12l4 4v14H2z"/>
-          </svg>
-        );
-    }
-  };
+  // 파일 형식 아이콘 (향후 사용 예정)
+  // const getFileIcon = (fileType: string) => {
+  //   switch (fileType.toLowerCase()) {
+  //     case '.pdf':
+  //       return (
+  //         <svg className="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+  //           <path d="M4 18h12V6h-4V2H4v16zm-2 1V1h12l4 4v14H2z"/>
+  //         </svg>
+  //       );
+  //     case '.docx':
+  //       return (
+  //         <svg className="w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+  //           <path d="M4 18h12V6h-4V2H4v16zm-2 1V1h12l4 4v14H2z"/>
+  //         </svg>
+  //       );
+  //     case '.xlsx':
+  //       return (
+  //         <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+  //           <path d="M4 18h12V6h-4V2H4v16zm-2 1V1h12l4 4v14H2z"/>
+  //         </svg>
+  //       );
+  //     case '.txt':
+  //       return (
+  //         <svg className="w-5 h-5 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
+  //           <path d="M4 18h12V6h-4V2H4v16zm-2 1V1h12l4 4v14H2z"/>
+  //         </svg>
+  //       );
+  //     default:
+  //       return (
+  //         <svg className="w-5 h-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+  //           <path d="M4 18h12V6h-4V2H4v16zm-2 1V1h12l4 4v14H2z"/>
+  //         </svg>
+  //       );
+  //   }
+  // };
 
   if (isLoading) {
     return (
