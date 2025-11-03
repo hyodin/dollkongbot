@@ -11,7 +11,7 @@ from typing import Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/auth", tags=["auth"])
+router = APIRouter(prefix="/auth", tags=["auth"])
 
 # 중복 요청 방지를 위한 캐시
 processed_codes = set()

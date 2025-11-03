@@ -19,7 +19,7 @@ from services.naverworks_email_service import get_naverworks_email_service
 logger = logging.getLogger(__name__)
 
 # 라우터 초기화
-router = APIRouter(prefix="/api", tags=["Email"])
+router = APIRouter(tags=["Email"])
 
 # === 요청/응답 모델 ===
 

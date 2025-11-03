@@ -217,7 +217,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://www.yncsmart.com/dollkongbot",
+        "https://www.yncsmart.com/dollkongbot/",
         "http://localhost:3005", 
         "http://127.0.0.1:3005"
     ],  # React 개발 서버 (포트 3005)
@@ -241,11 +241,11 @@ async def global_exception_handler(request, exc):
     )
 
 
-# 라우터 등록
-app.include_router(upload.router, prefix="/api", tags=["파일 업로드"])
-app.include_router(search.router, prefix="/api", tags=["문서 검색"])
+# 라우터 등록 (프록시가 /api/dollkongbot/ 제거하므로 prefix 불필요)
+app.include_router(upload.router, tags=["파일 업로드"])
+app.include_router(search.router, tags=["문서 검색"])
 app.include_router(chat.router, tags=["RAG 채팅"])
-app.include_router(faq.router, prefix="/api", tags=["FAQ"])
+app.include_router(faq.router, tags=["FAQ"])
 app.include_router(auth.router, tags=["인증"])
 app.include_router(admin.router, tags=["관리자"])
 app.include_router(email.router, tags=["이메일"])

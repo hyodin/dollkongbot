@@ -165,7 +165,7 @@ class ApiClient {
 
   constructor() {
     this.client = axios.create({
-      baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
+      baseURL: import.meta.env.VITE_API_BASE_URL || '/api/dollkongbot',
       timeout: 30000, // 30초 타임아웃
       headers: {
         'Content-Type': 'application/json',

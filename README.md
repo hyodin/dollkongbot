@@ -193,7 +193,7 @@ file-vector-search-system/
 
 ### 파일 업로드
 ```http
-POST /api/upload
+POST /api/dollkongbot/upload
 Content-Type: multipart/form-data
 
 Response:
@@ -206,7 +206,7 @@ Response:
 
 ### 문서 검색
 ```http
-POST /api/search
+POST /api/dollkongbot/search
 Content-Type: application/json
 
 {
@@ -234,7 +234,7 @@ Response:
 
 ### 문서 목록 조회
 ```http
-GET /api/documents
+GET /api/dollkongbot/documents
 
 Response:
 {

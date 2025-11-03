@@ -22,7 +22,7 @@ from services.query_normalizer import get_query_normalizer  # 질문 정규화 �
 logger = logging.getLogger(__name__)
 
 # 라우터 초기화
-router = APIRouter(prefix="/api", tags=["RAG Chat"])
+router = APIRouter(tags=["RAG Chat"])
 
 # === 요청/응답 모델 ===
 

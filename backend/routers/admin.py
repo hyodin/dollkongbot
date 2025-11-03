@@ -14,7 +14,7 @@ from routers.auth import verify_admin
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/admin", tags=["admin"])
+router = APIRouter(prefix="/admin", tags=["admin"])
 
 
 class FAQSettingUpdate(BaseModel):
