@@ -61,7 +61,7 @@ function MainApp() {
         if (!token || !userData) {
           // 로그인 기록이 없으면 바로 네이버웍스 로그인 페이지로 리다이렉트
           const CLIENT_ID = 'KG7nswiEUqq3499jB5Ih';
-          const REDIRECT_URI = 'https://www.yncsmart.com/dollkongbot';
+          const REDIRECT_URI = 'https://www.yncsmart.com/dollkongbot/';
           const SCOPE = 'user.read,mail';
           
           const params = new URLSearchParams({
@@ -88,7 +88,7 @@ function MainApp() {
             },
             body: JSON.stringify({ 
               code, 
-              redirect_uri: 'https://www.yncsmart.com/dollkongbot' 
+              redirect_uri: 'https://www.yncsmart.com/dollkongbot/' 
             }),
           });
 
@@ -208,7 +208,7 @@ function MainApp() {
 
     // 로그아웃 후 네이버웍스 로그인 페이지로 즉시 리다이렉트
     const CLIENT_ID = 'KG7nswiEUqq3499jB5Ih';
-    const REDIRECT_URI = 'https://www.yncsmart.com/dollkongbot';
+    const REDIRECT_URI = 'https://www.yncsmart.com/dollkongbot/';
     const SCOPE = 'user.read,mail';
 
     const params = new URLSearchParams({

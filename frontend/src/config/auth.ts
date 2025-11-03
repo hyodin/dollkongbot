@@ -31,7 +31,7 @@ export function getNaverworksAuthUrl(): string {
   try {
     const env = (import.meta as any)?.env || {};
     const clientId = env.VITE_NAVERWORKS_CLIENT_ID || 'KG7nswiEUqq3499jB5Ih';
-    const redirectUri = env.VITE_NAVERWORKS_REDIRECT_URI || 'https://www.yncsmart.com/dollkongbot';
+    const redirectUri = env.VITE_NAVERWORKS_REDIRECT_URI || 'https://www.yncsmart.com/dollkongbot/';
     const scope = env.VITE_NAVERWORKS_SCOPE || 'user.read,mail';
 
     const params = new URLSearchParams({

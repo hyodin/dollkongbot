@@ -34,7 +34,7 @@ const NaverWorksLogin: React.FC<NaverWorksLoginProps> = ({
 
   // 네이버웍스 OAuth 설정
   const CLIENT_ID = 'KG7nswiEUqq3499jB5Ih';
-  const REDIRECT_URI = 'https://www.yncsmart.com/dollkongbot';
+  const REDIRECT_URI = 'https://www.yncsmart.com/dollkongbot/';
   const SCOPE = 'user.read,mail';  // 사용자 정보 읽기 + 메일 읽기 권한 (쉼표로 구분)
 
   // 네이버웍스 OAuth URL 생성
