@@ -37,7 +37,7 @@ const AdminPage: React.FC = () => {
         return;
       }
 
-      const response = await fetch('/api/admin/faq/settings', {
+      const response = await fetch('/api/dollkongbot/admin/faq/settings', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -103,7 +103,7 @@ const AdminPage: React.FC = () => {
       let successCount = 0;
 
       for (const keyword of Array.from(selectedItems)) {
-        const response = await fetch(`/api/admin/faq/${encodeURIComponent(keyword)}/visibility?visible=${visible}`, {
+        const response = await fetch(`/api/dollkongbot/admin/faq/${encodeURIComponent(keyword)}/visibility?visible=${visible}`, {
           method: 'PUT',
           headers: {
             'Authorization': `Bearer ${token}`
@@ -142,7 +142,7 @@ const AdminPage: React.FC = () => {
     
     try {
       const token = localStorage.getItem('naverworks_token');
-      const response = await fetch(`/api/admin/faq/${encodeURIComponent(faq.keyword)}/visibility?visible=${newVisible}`, {
+      const response = await fetch(`/api/dollkongbot/admin/faq/${encodeURIComponent(faq.keyword)}/visibility?visible=${newVisible}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -206,7 +206,7 @@ const AdminPage: React.FC = () => {
       const token = localStorage.getItem('naverworks_token');
       const keywords = faqData.map(faq => faq.keyword);
       
-      const response = await fetch('/api/admin/faq/reorder', {
+      const response = await fetch('/api/dollkongbot/admin/faq/reorder', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

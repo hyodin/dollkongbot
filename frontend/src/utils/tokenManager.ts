@@ -173,7 +173,7 @@ export async function refreshAccessToken(): Promise<StoredTokenInfo> {
   }
 
   console.log('[tokenManager] refreshing access token');
-  const resp = await fetch('/api/auth/naverworks/refresh', {
+  const resp = await fetch('/api/dollkongbot/auth/naverworks/refresh', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ refresh_token: refreshToken, scope })
