@@ -1,9 +1,10 @@
 {
-  "name": "file-vector-search-frontend",
+  "name": "dollkongbot",
   "version": "1.0.0",
   "description": "한국어 문서 벡터 검색 시스템 프론트엔드",
   "type": "module",
   "private": true,
+  "homepage": "/dollkongbot",
   "dependencies": {
     "@types/node": "^20.8.0",
     "@types/react": "^18.2.25",
