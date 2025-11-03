@@ -23,7 +23,8 @@ export default defineConfig({
           });
         },
       }
-    }
+    },
+    allowedHosts: ['www.yncsmart.com', 'yncsmart.com']
   },
   build: {
     outDir: '/opt/dollkongbot/frontend/dist',
