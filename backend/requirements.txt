@@ -1,35 +1,49 @@
-# FastAPI and web server
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
+# ============================================
+# FastAPI 웹 서버
+# ============================================
+fastapi==0.104.1          # REST API 프레임워크 (사규 챗봇의 REST API 엔드포인트 제공)
+uvicorn[standard]==0.24.0 # FastAPI 실행을 위한 ASGI 서버 (`uvicorn main:app --reload` 명령어로 서버 시작)
 
-# File processing
-PyPDF2==3.0.1
-pdfplumber>=0.11.0
-python-docx==1.1.0
-openpyxl==3.1.2
-python-multipart==0.0.6
+# ============================================
+# 파일 처리 (Excel, PDF, Word)
+# ============================================
+PyPDF2==3.0.1             # PDF 파일 읽기 및 텍스트 추출 (기본적인 PDF 처리)
+pdfplumber>=0.11.0        # PDF에서 표(table) 구조 추출 - PyPDF2보다 강력
+python-docx==1.1.0        # Word 파일(.docx) 읽기/쓰기 (문서의 제목, 조항 구조 추출)
+openpyxl==3.1.2           # Excel 파일(.xlsx) 읽기/쓰기 (셀, 병합 셀, 시트 정보 추출)
+python-multipart==0.0.6   # FastAPI에서 파일 업로드 처리 (multipart/form-data). POST /upload 엔드포인트에서 Excel/PDF/Word 파일 수신
 
-# Korean NLP
-kiwipiepy>=0.17.1
-sentence-transformers==2.7.0
-huggingface_hub==0.24.0
-kss==4.5.4
+# ============================================
+# 한국어 자연어 처리 (NLP)
+# ============================================
+kiwipiepy>=0.17.1         # 한국어 형태소 분석 ("쉬고 싶어" → ["쉬다", "싶다"]). 동사/명사 추출, 불필요한 조사 제거
+sentence-transformers==2.7.0  # 문장 임베딩 모델 라이브러리 (KoSBERT 모델을 로드하여 텍스트 → 벡터 변환)
+huggingface_hub==0.24.0   # Hugging Face 모델 다운로드 (KoSBERT 같은 사전학습 모델을 자동으로 다운로드)
+kss==4.5.4                # Korean Sentence Splitter - 한국어 문장 분리 (긴 텍스트를 문장 단위로 자르기)
 
-# Vector database
-qdrant-client==1.11.3  # Python 3.12 완전 지원 버전
+# ============================================
+# 벡터 데이터베이스
+# ============================================
+qdrant-client==1.12.0     # Qdrant 벡터 DB 클라이언트 (임베딩 벡터 저장 및 유사도 검색)
 
-# ML and data processing
-torch==2.1.1
-numpy==1.24.4
-transformers==4.44.0
+# ============================================
+# 머신러닝 및 데이터 처리
+# ============================================
+torch==2.1.1              # PyTorch (딥러닝 프레임워크) - KoSBERT, Transformers 모델 실행에 필요. GPU/CPU에서 모델 inference.
+numpy==1.24.4             # 수치 계산 및 벡터 연산 (임베딩 벡터(np.array) 계산에 사용)
+transformers==4.44.0      # Hugging Face Transformers 라이브러리 - BERT, GPT 등 Transformer 모델 사용. KoSBERT 같은 모델의 토크나이저 및 inference
 
-# Utilities
-python-dotenv==1.0.0
-pydantic==2.5.0
-aiofiles==23.2.1
-pyyaml==6.0.1
-requests==2.31.0
+# ============================================
+# 유틸리티
+# ============================================
+python-dotenv==1.0.0      # .env 파일 환경변수 로드 - QDRANT_URL, OPENAI_API_KEY 같은 설정 관리. load_dotenv()로 .env 파일 읽기
+pydantic==2.5.0           # 데이터 검증 (FastAPI의 request/response 모델 정의)
+aiofiles==23.2.1          # 비동기 파일 I/O - 대용량 파일 업로드/다운로드 시 성능 향상
+pyyaml==6.0.1             # YAML 설정 파일 파싱 - config.yaml 같은 설정 파일 파싱
+requests==2.31.0          # HTTP 요청 라이브러리 (동기) - Ollama API 호출, 외부 API 연동
 
-# LLM Integration
-aiohttp==3.9.1
-google-generativeai==0.3.2
+# ============================================
+# LLM 연동
+# ============================================
+aiohttp==3.9.1            # 비동기 HTTP 클라이언트 - 빠른 API 호출 (requests의 비동기 버전)
+google-generativeai==0.3.2  # Google Gemini API Python SDK - gemini-2.0-flash 모델 호출
