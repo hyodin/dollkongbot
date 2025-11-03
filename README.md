@@ -106,7 +106,7 @@ pip install -r requirements.txt
 python main.py
 ```
 
-백엔드 서버가 http://localhost:8000 에서 실행됩니다.
+백엔드 서버가 http://localhost:5000 에서 실행됩니다.
 
 ### 4. 프론트엔드 설정
 
@@ -121,7 +121,7 @@ npm install
 npm run dev
 ```
 
-프론트엔드가 http://localhost:3000 에서 실행됩니다.
+프론트엔드가 http://localhost:3005 에서 실행됩니다.
 
 ### 5. 실행 순서
 
@@ -156,8 +156,8 @@ npm run dev
 
 #### 서비스 URL
 - 🔴 Qdrant 대시보드: http://localhost:6333/dashboard
-- 🔵 백엔드 API: http://localhost:8000
-- 🟢 프론트엔드: http://localhost:3000
+- 🔵 백엔드 API: http://localhost:5000
+- 🟢 프론트엔드: http://localhost:3005
 
 ## 📁 프로젝트 구조
 
@@ -287,7 +287,7 @@ pip freeze > requirements.txt
 python -m pytest
 
 # API 문서 확인
-# http://localhost:8000/docs
+# http://localhost:5000/docs
 ```
 
 ### 프론트엔드 개발

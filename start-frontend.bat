@@ -13,7 +13,7 @@ if not exist node_modules (
 
 echo.
 echo 프론트엔드 개발 서버를 시작합니다...
-echo URL: http://localhost:3000
+echo URL: http://localhost:3005
 echo.
 
 npm run dev

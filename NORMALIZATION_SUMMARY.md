@@ -292,7 +292,7 @@ start-backend.bat
 RAG 채팅 API 호출 시 자동으로 질문 정규화가 적용됩니다:
 
 ```bash
-POST http://localhost:8000/api/chat
+POST http://localhost:5000/api/chat
 {
   "question": "연차   휴가는   어떻게  신청하나요?"
 }

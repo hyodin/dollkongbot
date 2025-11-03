@@ -88,7 +88,7 @@ const AuthCallback: React.FC<AuthCallbackProps> = ({ onLoginSuccess }) => {
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ code: cleanCode, redirect_uri: 'http://localhost:3000/' }),
+          body: JSON.stringify({ code: cleanCode, redirect_uri: 'https://www.yncsmart.com/dollkongbot' }),
         });
 
         if (!response.ok) {

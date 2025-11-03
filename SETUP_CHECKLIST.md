@@ -49,14 +49,14 @@
    - 가상환경 자동 생성/활성화
    - 패키지 자동 설치
    - KoSBERT 모델 다운로드 (첫 실행 시)
-   - 서버 시작: http://localhost:8000
+   - 서버 시작: http://localhost:5000
 
 2. **프론트엔드 실행**:
    ```bash
    .\start-frontend.bat
    ```
    - Node.js 패키지 자동 설치
-   - 개발 서버 시작: http://localhost:3000
+   - 개발 서버 시작: http://localhost:3005
 
 ## ⚠️ 주의사항
 

@@ -309,7 +309,7 @@ APP_PORT=8001
 ### 헬스체크 API
 
 ```bash
-curl http://localhost:8000/health
+curl http://localhost:5000/health
 
 # 응답에서 설정 확인 가능
 {

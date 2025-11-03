@@ -817,7 +817,7 @@ cd ~/chatbot/frontend
 npm run dev
 ```
 
-프론트엔드가 `http://localhost:3000`에서 실행됩니다.
+프론트엔드가 `http://localhost:3005`에서 실행됩니다.
 
 ### 프로덕션 환경 설정 (관리자에게 요청)
 

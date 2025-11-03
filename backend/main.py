@@ -183,8 +183,8 @@ async def lifespan(app: FastAPI):
         logger.info("=" * 80)
         logger.info("🚀 모든 서비스 초기화 완료 - 서버 준비됨")
         logger.info("=" * 80)
-        logger.info(f"📍 API 문서: http://localhost:8000/docs")
-        logger.info(f"📍 헬스체크: http://localhost:8000/health")
+        logger.info(f"📍 API 문서: http://localhost:5000/docs")
+        logger.info(f"📍 헬스체크: http://localhost:5000/health")
         logger.info("=" * 80)
         
     except Exception as e:
@@ -217,11 +217,10 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:3000", 
-        "http://127.0.0.1:3000",
-        "http://localhost:3001", 
-        "http://127.0.0.1:3001"
-    ],  # React 개발 서버 (포트 3000, 3001)
+        "https://www.yncsmart.com/dollkongbot",
+        "http://localhost:3005", 
+        "http://127.0.0.1:3005"
+    ],  # React 개발 서버 (포트 3005)
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -334,7 +333,7 @@ if __name__ == "__main__":
     
     # 환경 변수에서 서버 설정 로드
     host = os.getenv("APP_HOST", "0.0.0.0")
-    port = int(os.getenv("APP_PORT", "8000"))
+    port = int(os.getenv("APP_PORT", "5000"))
     log_level = os.getenv("LOG_LEVEL", "info").lower()
     debug = os.getenv("DEBUG", "false").lower() == "true"
     

@@ -45,7 +45,7 @@ https://www.worksapis.com/oauth2/authorize
 #### 방법 3: 네이버웍스 OAuth 설정 확인
 1. **Client ID**: `KG7nswiEUqq3499jB5Ih`
 2. **Client Secret**: `t8_Nud9m8z`
-3. **Redirect URI**: `http://localhost:3000/auth/callback`
+3. **Redirect URI**: `http://localhost:3005/auth/callback`
 4. **Scope**: `user:read`
 
 ## 임시 해결책 (현재 적용됨)
@@ -69,7 +69,7 @@ USE_DUMMY_AUTH = True  # OAuth 문제 해결 전까지 True로 설정
 ### 1. 네이버웍스 개발자 계정 생성
 1. [네이버웍스 개발자 콘솔](https://developers.worksmobile.com/) 접속
 2. 새 애플리케이션 등록
-3. OAuth 설정에서 리다이렉트 URI 등록: `http://localhost:3000/auth/callback`
+3. OAuth 설정에서 리다이렉트 URI 등록: `http://localhost:3005/auth/callback`
 
 ### 2. 올바른 OAuth URL 확인
 네이버웍스 개발자 문서에서 최신 OAuth 엔드포인트 확인:
