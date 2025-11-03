@@ -352,14 +352,6 @@ async def get_user_info():
     # 실제 구현에서는 JWT 토큰 검증 등을 수행
     return {"message": "사용자 정보 조회 API"}
 
-@router.post("/naverworks/logout")
-async def logout():
-    """
-    로그아웃 처리
-    """
-    return {"message": "로그아웃 성공"}
-
-
 async def verify_admin(authorization: Optional[str] = Header(None)) -> bool:
     """
     관리자 권한 확인

@@ -178,46 +178,6 @@ function MainApp() {
     console.log('로그인 성공:', { user, isAdmin: adminStatus });
   }, []); // 의존성 없음 - localStorage와 setState만 사용
 
-  // 로그아웃 처리
-  const handleLogout = useCallback(() => {
-    // 리다이렉트 화면 전환
-    setIsRedirecting(true);
-
-    setUser(undefined);
-    setIsAdmin(false);
-    setIsLoggedIn(false);
-    localStorage.removeItem('naverworks_user');
-    localStorage.removeItem('naverworks_token');
-    localStorage.removeItem('naverworks_is_admin');
-    localStorage.removeItem('naverworks_refresh_token');
-    localStorage.removeItem('naverworks_expires_in');
-    localStorage.removeItem('naverworks_token_expiry_ms');
-    localStorage.removeItem('naverworks_token_type');
-    localStorage.removeItem('naverworks_scope');
-    toast.success('로그아웃되었습니다');
-
-    // 로그아웃 후 네이버웍스 로그인 페이지로 즉시 리다이렉트
-    const CLIENT_ID = 'KG7nswiEUqq3499jB5Ih';
-    const REDIRECT_URI = 'https://www.yncsmart.com/dollkongbot/';
-    const SCOPE = 'user.read,mail';
-
-    const params = new URLSearchParams({
-      client_id: CLIENT_ID,
-      redirect_uri: REDIRECT_URI,
-      response_type: 'code',
-      scope: SCOPE,
-      state: 'naverworks_auth'
-    });
-
-    const authUrl = `https://auth.worksmobile.com/oauth2/v2.0/authorize?${params.toString()}`;
-
-    try {
-      window.location.href = authUrl;
-    } catch (_e) {
-      // 에러 시에는 리다이렉트 화면 유지
-    }
-  }, []);
-
   // 문서 목록 로드
   const loadDocuments = async () => {
     try {
@@ -327,7 +287,6 @@ function MainApp() {
         <div className="hidden">
           <NaverWorksLogin
             onLoginSuccess={handleLoginSuccess}
-            onLogout={handleLogout}
             isLoggedIn={isLoggedIn}
             user={user}
           />
@@ -405,7 +364,6 @@ function MainApp() {
               {/* 네이버웍스 로그인 */}
               <NaverWorksLogin
                 onLoginSuccess={handleLoginSuccess}
-                onLogout={handleLogout}
                 isLoggedIn={isLoggedIn}
                 user={user}
               />

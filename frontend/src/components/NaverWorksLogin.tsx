@@ -19,14 +19,12 @@ interface NaverWorksUser {
 
 interface NaverWorksLoginProps {
   onLoginSuccess: (user: NaverWorksUser) => void;
-  onLogout: () => void;
   isLoggedIn: boolean;
   user?: NaverWorksUser;
 }
 
 const NaverWorksLogin: React.FC<NaverWorksLoginProps> = ({
   onLoginSuccess,
-  onLogout,
   isLoggedIn,
   user
 }) => {
@@ -86,15 +84,6 @@ const NaverWorksLogin: React.FC<NaverWorksLoginProps> = ({
       toast.error('OAuth URL 생성에 실패했습니다');
       setIsLoading(false);
     }
-  };
-
-  // 로그아웃
-  const handleLogout = () => {
-    localStorage.removeItem('naverworks_user');
-    localStorage.removeItem('naverworks_token');
-    localStorage.removeItem('naverworks_is_admin');
-    onLogout();
-    toast.success('로그아웃되었습니다');
   };
 
   // 컴포넌트 마운트 시 토큰 확인 (이미 로그인되어 있으면 스킵)
@@ -167,14 +156,6 @@ const NaverWorksLogin: React.FC<NaverWorksLoginProps> = ({
             </div>
           </div>
         </div>
-        
-        {/* 로그아웃 버튼 */}
-        <button
-          onClick={handleLogout}
-          className="px-3 py-1 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
-        >
-          로그아웃
-        </button>
       </div>
     );
   }
