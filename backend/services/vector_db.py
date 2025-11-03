@@ -535,6 +535,45 @@ class VectorDatabase:
             logger.error("=" * 70)
             return False
     
+    def delete_document_by_name(self, file_name: str) -> bool:
+        """
+        특정 파일명의 모든 청크 삭제 (중복 업로드 방지용)
+        
+        Args:
+            file_name: 삭제할 파일명
+            
+        Returns:
+            삭제 성공 여부
+        """
+        logger.info("=" * 70)
+        logger.info(f"동일 파일명 삭제 시작 - 파일명: {file_name}")
+        logger.info("=" * 70)
+        
+        try:
+            # 파일명으로 필터링하여 삭제
+            self.client.delete(
+                collection_name=self.collection_name,
+                points_selector=models.FilterSelector(
+                    filter=models.Filter(
+                        must=[
+                            models.FieldCondition(
+                                key="file_name",
+                                match=models.MatchValue(value=file_name)
+                            )
+                        ]
+                    )
+                )
+            )
+            
+            logger.info(f"✅ 동일 파일명 삭제 완료 - 파일명: {file_name}")
+            logger.info("=" * 70)
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ 동일 파일명 삭제 실패: {str(e)}")
+            logger.error("=" * 70)
+            return False
+    
     def health_check(self) -> bool:
         """
         데이터베이스 연결 상태 확인

@@ -314,6 +314,13 @@ async def _process_file(file_content: bytes, file_name: str) -> Dict[str, Any]:
         # 5. 벡터 DB 저장 (메타데이터와 함께)
         logger.info("벡터 DB 저장 시작")
         vector_db = get_vector_db()
+        
+        # 5-1. 동일 파일명이 존재하면 기존 데이터 삭제 (중복 방지)
+        logger.info(f"동일 파일명 '{file_name}' 검색 및 삭제 중...")
+        deleted = vector_db.delete_document_by_name(file_name)
+        if deleted:
+            logger.info(f"✓ 기존 파일 '{file_name}' 삭제 완료")
+        
         file_id = vector_db.insert_documents(chunks, embeddings, file_name, file_ext, cell_metadata)
         
         logger.info(f"벡터 DB 저장 완료: 파일 ID {file_id}")
