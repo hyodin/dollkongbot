@@ -21,15 +21,41 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from dotenv import load_dotenv
 
+# ============================================================
+# .env 파일 로드 - 다른 모듈들이 import될 때 환경변수가 필요하므로 가장 먼저 실행
+# ============================================================
+# 환경 구분: ENV 환경변수로 제어 (local, prod
+# - ENV=local 또는 미설정: .env.local 우선 사용
+# - ENV=prod: .env.prod 우선 사용
+# - 우선순위: .env.[ENV] > .env
+
+env_mode = os.getenv("ENV", "local").lower()
+env_file = f".env.{env_mode}"
+env_path = Path(__file__).parent / env_file
+
+# 환경별 .env 파일 로드
+if env_path.exists():
+    print(f"[환경설정] {env_file} 파일 로드")
+    load_dotenv(dotenv_path=env_path)
+else:
+    print(f"[환경설정] {env_file} 파일 없음, 기본 .env 파일 로드")
+    load_dotenv()
+
+print(f"[환경설정] 현재 환경: {env_mode.upper()}")
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 # ============================================================
-# 로깅 설정 - 가장 먼저 설정해야 모든 로그가 출력됨
+# 로깅 설정 - 환경변수 로드 후 설정해야 LOG_LEVEL 등을 올바르게 읽을 수 있음
 # ============================================================
+# 환경변수에서 로그 레벨 읽기 (기본값: INFO)
+log_level_str = os.getenv("LOG_LEVEL", "INFO").upper()
+log_level = getattr(logging, log_level_str, logging.INFO)
+
 logging.basicConfig(
-    level=logging.INFO,
+    level=log_level,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(sys.stdout),  # 콘솔 출력 (stdout 명시)
@@ -95,9 +121,6 @@ logger.debug(f"  - transformers: {'필터링' if _should_filter_log('FILTER_TRAN
 logger.info("=" * 80)
 logger.info("FastAPI 애플리케이션 초기화 시작")
 logger.info("=" * 80)
-
-# .env 파일 로드 (환경변수: GOOGLE_API_KEY 등)
-load_dotenv()
 logger.info("✓ 환경 변수 로드 완료 (.env)")
 
 # 로컬 모듈 import를 위한 경로 추가

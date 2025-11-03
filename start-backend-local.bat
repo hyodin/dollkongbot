@@ -1,15 +1,14 @@
 @echo off
 echo ================================
-echo Korean Document Vector Search Backend [DEFAULT]
+echo Korean Document Vector Search Backend [LOCAL]
 echo ================================
 
 cd backend
 
-REM 환경 변수가 설정되지 않은 경우 local 기본값 사용
-if not defined ENV set ENV=local
+REM 로컬 환경 설정
+set ENV=local
 
-echo Environment: %ENV%
-echo Note: Use start-backend-local.bat or start-backend-production.bat for explicit environment
+echo Environment: LOCAL
 echo.
 
 echo Checking virtual environment...
@@ -26,7 +25,7 @@ echo Updating packages...
 venv\Scripts\pip.exe install -r requirements.txt --upgrade --quiet
 
 echo.
-echo Starting backend server...
+echo Starting backend server (LOCAL environment)...
 echo URL: http://localhost:5000
 echo API Docs: http://localhost:5000/docs
 echo.
@@ -37,3 +36,4 @@ echo.
 venv\Scripts\python.exe main.py
 
 pause
+

@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { formatExpiryForStorage } from './utils/tokenManager';
+import { getNaverworksAuthUrl } from './config/auth';
 
 import FileUpload from './components/FileUpload';
 import SearchBar from './components/SearchBar';
@@ -60,19 +61,8 @@ function MainApp() {
         
         if (!token || !userData) {
           // 로그인 기록이 없으면 바로 네이버웍스 로그인 페이지로 리다이렉트
-          const CLIENT_ID = 'KG7nswiEUqq3499jB5Ih';
-          const REDIRECT_URI = 'https://www.yncsmart.com/dollkongbot/';
-          const SCOPE = 'user.read,mail';
-          
-          const params = new URLSearchParams({
-            client_id: CLIENT_ID,
-            redirect_uri: REDIRECT_URI,
-            response_type: 'code',
-            scope: SCOPE,
-            state: 'naverworks_auth'
-          });
-          
-          const authUrl = `https://auth.worksmobile.com/oauth2/v2.0/authorize?${params.toString()}`;
+          // 환경에 따라 자동으로 설정된 URL 사용
+          const authUrl = getNaverworksAuthUrl();
           console.log('로그인 기록 없음, 네이버웍스 로그인 페이지로 리다이렉트...');
           window.location.href = authUrl;
           return;
