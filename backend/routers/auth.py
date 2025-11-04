@@ -24,6 +24,8 @@ NAVERWORKS_CLIENT_SECRET = os.getenv("NAVERWORKS_CLIENT_SECRET", "t8_Nud9m8z")
 NAVERWORKS_TOKEN_URL = os.getenv("NAVERWORKS_TOKEN_URL", "https://auth.worksmobile.com/oauth2/v2.0/token")
 NAVERWORKS_USER_INFO_URL = os.getenv("NAVERWORKS_USER_INFO_URL", "https://www.worksapis.com/v1.0/users/me")
 NAVERWORKS_USERS_SEARCH_URL = os.getenv("NAVERWORKS_USERS_SEARCH_URL", "https://www.worksapis.com/v1.0/users")
+# 네이버웍스 OAuth Scope (쉼표로 구분)
+NAVERWORKS_SCOPE = os.getenv("NAVERWORKS_SCOPE", "user.read,mail,board.read")
 
 # 네이버웍스 OAuth 설정 완료
 
@@ -145,7 +147,7 @@ async def naverworks_callback(request: OAuthCallbackRequest):
             "redirect_uri": request.redirect_uri,
             "client_id": NAVERWORKS_CLIENT_ID,
             "client_secret": NAVERWORKS_CLIENT_SECRET,
-            "scope": "user.read,mail"  # 프론트엔드와 동일한 scope
+            "scope": NAVERWORKS_SCOPE  # 환경변수에서 가져온 scope
         }
         
         logger.info(f"네이버웍스 공식 OAuth 토큰 교환 요청")

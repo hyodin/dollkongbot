@@ -4,6 +4,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
+import { getNaverworksAuthUrl } from '../config/auth';
 
 interface NaverWorksUser {
   id: string;
@@ -30,54 +31,19 @@ const NaverWorksLogin: React.FC<NaverWorksLoginProps> = ({
 }) => {
   const [isLoading, setIsLoading] = useState(false);
 
-  // 네이버웍스 OAuth 설정
-  const CLIENT_ID = 'KG7nswiEUqq3499jB5Ih';
-  const REDIRECT_URI = 'https://www.yncsmart.com/dollkongbot/';
-  const SCOPE = 'user.read,mail';  // 사용자 정보 읽기 + 메일 읽기 권한 (쉼표로 구분)
-
-  // 네이버웍스 OAuth URL 생성
-  const getNaverWorksAuthUrl = () => {
-    const params = new URLSearchParams({
-      client_id: CLIENT_ID,
-      redirect_uri: REDIRECT_URI,
-      response_type: 'code',
-      scope: SCOPE,
-      state: 'naverworks_auth'
-    });
-    
-    // 네이버웍스 공식 OAuth 2.0 엔드포인트
-    // 공식 문서: https://developers.worksmobile.com/kr/docs/auth
-    const baseUrl = 'https://auth.worksmobile.com/oauth2/v2.0/authorize';
-    const authUrl = `${baseUrl}?${params.toString()}`;
-    
-    // 디버깅을 위한 로그
-    console.log('네이버웍스 공식 OAuth URL 생성:');
-    console.log('  - 공식 문서: https://developers.worksmobile.com/kr/docs/auth');
-    console.log('  - Scope:', SCOPE);
-    console.log('  - Client ID:', CLIENT_ID);
-    console.log('  - Redirect URI:', REDIRECT_URI);
-    console.log('  - Full URL:', authUrl);
-    
-    return authUrl;
-  };
-
   // 로그인 버튼 클릭
   const handleLogin = () => {
     setIsLoading(true);
     
-    // 네이버웍스 OAuth URL 생성 및 디버깅
-    const authUrl = getNaverWorksAuthUrl();
+    // 네이버웍스 OAuth URL 생성 (환경변수 기반)
+    const authUrl = getNaverworksAuthUrl();
     console.log('네이버웍스 OAuth URL:', authUrl);
-    console.log('Redirect URI:', REDIRECT_URI);
-    console.log('요청 권한 (Scope):', SCOPE);
-    
-    // 실제 네이버웍스 OAuth 사용
+    console.log('🔐 환경변수 기반 OAuth 사용');
     
     // URL이 유효한지 확인
     try {
       new URL(authUrl);
       console.log('✅ OAuth URL 유효성 검증 통과');
-      console.log('🔐 요청 권한: 사용자 정보 읽기 + 메일 발송');
       window.location.href = authUrl;
     } catch (error) {
       console.error('OAuth URL 생성 오류:', error);

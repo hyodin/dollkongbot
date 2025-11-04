@@ -129,10 +129,11 @@ logger.info(f"✓ Python 경로 추가: {Path(__file__).parent}")
 
 # 라우터 및 서비스 import
 logger.info("모듈 import 시작...")
-from routers import upload, search, chat, faq, auth, admin, email
+from routers import upload, search, chat, faq, auth, admin, email, board
 from services.embedder import get_embedder
 from services.vector_db import get_vector_db
 from services.gemini_service import initialize_gemini_service
+from services.scheduler import get_scheduler
 logger.info("✓ 모듈 import 완료")
 
 
@@ -202,6 +203,28 @@ async def lifespan(app: FastAPI):
         
         logger.info("3단계 완료: LLM 서비스 준비 완료")
         
+        # === 4단계: 스케줄러 초기화 ===
+        logger.info("━" * 60)
+        logger.info("4단계: 게시판 자동 동기화 스케줄러 시작")
+        logger.info("━" * 60)
+        
+        try:
+            scheduler = get_scheduler()
+            scheduler.start()
+            scheduler_status = scheduler.get_status()
+            
+            if scheduler_status.get("enabled"):
+                logger.info("✓ 게시판 자동 동기화: 활성화")
+                logger.info(f"✓ 스케줄: {scheduler_status.get('schedule')}")
+                logger.info(f"✓ 다음 실행: {scheduler_status.get('next_run_time')}")
+            else:
+                logger.info("⚠ 게시판 자동 동기화: 비활성화")
+        except Exception as e:
+            logger.warning(f"⚠ 스케줄러 초기화 실패: {str(e)}")
+            logger.warning("⚠ 수동 동기화는 사용 가능합니다")
+        
+        logger.info("4단계 완료: 스케줄러 준비 완료")
+        
         # === 초기화 완료 ===
         logger.info("=" * 80)
         logger.info("🚀 모든 서비스 초기화 완료 - 서버 준비됨")
@@ -223,6 +246,15 @@ async def lifespan(app: FastAPI):
     logger.info("=" * 80)
     logger.info("=== 애플리케이션 종료 중 ===")
     logger.info("=" * 80)
+    
+    # 스케줄러 종료
+    try:
+        scheduler = get_scheduler()
+        scheduler.stop()
+        logger.info("✓ 스케줄러 종료 완료")
+    except Exception as e:
+        logger.warning(f"⚠ 스케줄러 종료 중 오류: {str(e)}")
+    
     logger.info("리소스 정리 완료")
     logger.info("서버 종료 완료")
     logger.info("=" * 80)
@@ -272,6 +304,7 @@ app.include_router(faq.router, tags=["FAQ"])
 app.include_router(auth.router, tags=["인증"])
 app.include_router(admin.router, tags=["관리자"])
 app.include_router(email.router, tags=["이메일"])
+app.include_router(board.router, tags=["게시판 동기화"])
 
 
 # ngrok OAuth 콜백 리다이렉트 엔드포인트

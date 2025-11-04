@@ -1,0 +1,26 @@
+# ============================================
+# 게시판 자동 동기화 설정 예시
+# ============================================
+# 
+# 사용 방법:
+# 1. 이 파일의 내용을 .env.local 또는 .env.prod에 복사
+# 2. YOUR_BOARD_ID_HERE를 실제 게시판 ID로 교체
+# 3. YOUR_ACCESS_TOKEN_HERE를 실제 OAuth 토큰으로 교체
+# 4. 필요시 BOARD_SYNC_TITLE_KEYWORD와 BOARD_SYNC_CRON 수정
+# 5. 백엔드 서버 재시작
+
+# 게시판 ID (필수)
+# 네이버웍스 게시판의 고유 ID
+BOARD_SYNC_BOARD_ID=YOUR_BOARD_ID_HERE
+
+# 서비스 계정 액세스 토큰 (필수)
+# 자동 동기화를 위한 관리자 OAuth 토큰
+BOARD_SYNC_ACCESS_TOKEN=YOUR_ACCESS_TOKEN_HERE
+
+# 제목 키워드 (선택, 기본값 아래)
+BOARD_SYNC_TITLE_KEYWORD=[복리후생] 직원 인사 복리후생 기준
+
+# Cron 스케줄 (선택, 기본값: 매일 새벽 2시)
+# 형식: "분 시 일 월 요일"
+BOARD_SYNC_CRON=0 2 * * *
+
