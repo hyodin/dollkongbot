@@ -5,7 +5,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { toast } from 'react-toastify';
+// import { toast } from 'react-toastify'; // API 클라이언트에서 처리
 import apiClient, { UploadResponse } from '../api/client';
 
 interface FileUploadProps {
