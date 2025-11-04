@@ -199,13 +199,14 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // FAQ lvl1 키워드 로드 함수
+  // 계층 구조 lvl1 목록 로드 함수 (파일 업로드 후 파싱된 데이터)
   const loadFAQLevel1Keywords = async () => {
     try {
       setIsLoadingFAQ(true);
-      const response = await apiClient.getFAQLevel1Keywords();
-      if (response.status === 'success' && response.data) {
-        setFaqLevel1Keywords(response.data);
+      const response = await apiClient.getHierarchyLevel1();
+      if (response.status === 'success' && response.lvl1_categories) {
+        const lvl1List = response.lvl1_categories;
+        setFaqLevel1Keywords(lvl1List);
         // 첫 인사 말풍선에 lvl1 버튼 부착
         setMessages(prev => {
           if (prev.length === 0) return prev;
@@ -214,7 +215,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
             ...first,
             faqButtons: {
               level: 'lvl1',
-              items: (response.data ?? []).map((it: any) => getKeywordString(it))
+              items: lvl1List
             }
           };
           return [updatedFirst, ...prev.slice(1)];
@@ -223,7 +224,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
         setFaqLevel1Keywords([]);
       }
     } catch (error) {
-      console.error('FAQ lvl1 키워드 로드 실패:', error);
+      console.error('계층 구조 lvl1 목록 로드 실패:', error);
       setFaqLevel1Keywords([]);
       // toast.error는 제거 (잠자는 돌콩이 알림창이 대신 표시됨)
     } finally {
@@ -231,7 +232,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
     }
   };
 
-  // lvl1 키워드 클릭 핸들러
+  // lvl1 키워드 클릭 핸들러 (계층 구조 조회 API 사용)
   const handleLevel1Click = async (item: string | FAQKeyword) => {
     const keyword = getKeywordString(item);
     try {
@@ -239,15 +240,17 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
       // 사용자 선택 메시지 남기기
       appendUserMessage(keyword);
       setSelectedLevel1(keyword);
-      const response = await apiClient.getFAQLevel2ByLevel1(keyword);
-      if (response.status === 'success' && response.data) {
-        setFaqLevel2Keywords(response.data);
+      // 계층 구조 조회 API 호출: lvl1 값으로 lvl2 목록 조회
+      const response = await apiClient.getHierarchyLevel2(keyword);
+      if (response.status === 'success' && response.lvl2_categories) {
+        const lvl2List = response.lvl2_categories;
+        setFaqLevel2Keywords(lvl2List);
         // 이전 단계 상태 초기화
         setFaqLevel3Questions([]);
         setSelectedLevel2('');
         // 어시스턴트 메시지로 lvl2 키워드 버튼 제공
-        if (response.data.length > 0) {
-          sendAssistantListMessage(`다음 하위 키워드를 선택해 주세요`, response.data, 'lvl2');
+        if (lvl2List.length > 0) {
+          sendAssistantListMessage(`다음 하위 키워드를 선택해 주세요`, lvl2List, 'lvl2');
         } else {
           toast.info(`'${keyword}' 주제에 등록된 하위 키워드가 없습니다.`);
         }
@@ -256,7 +259,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
         toast.info(`'${keyword}' 주제에 등록된 하위 키워드가 없습니다.`);
       }
     } catch (error) {
-      console.error('FAQ lvl2 키워드 로드 실패:', error);
+      console.error('계층 구조 lvl2 목록 로드 실패:', error);
       setFaqLevel2Keywords([]);
       // toast.error는 제거 (잠자는 돌콩이 알림창이 대신 표시됨)
     } finally {
@@ -264,7 +267,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
     }
   };
 
-  // lvl2 키워드 클릭 핸들러
+  // lvl2 키워드 클릭 핸들러 (계층 구조 조회 API 사용)
   const handleLevel2Click = async (item: string | FAQKeyword) => {
     const keyword = getKeywordString(item);
     try {
@@ -272,12 +275,14 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
       // 사용자 선택 메시지 남기기
       appendUserMessage(keyword);
       setSelectedLevel2(keyword);
-      const response = await apiClient.getFAQLevel3Questions(keyword);
-      if (response.status === 'success' && response.data) {
-        setFaqLevel3Questions(response.data);
+      // 계층 구조 조회 API 호출: lvl1, lvl2 값으로 lvl3 목록 조회
+      const response = await apiClient.getHierarchyLevel3(selectedLevel1, keyword);
+      if (response.status === 'success' && response.lvl3_categories) {
+        const lvl3List = response.lvl3_categories;
+        setFaqLevel3Questions(lvl3List);
         // 어시스턴트 메시지로 lvl3 질문 버튼 제공
-        if (response.data.length > 0) {
-          sendAssistantListMessage(`다음 하위 키워드를 선택해 주세요`, response.data, 'lvl3');
+        if (lvl3List.length > 0) {
+          sendAssistantListMessage(`다음 하위 키워드를 선택해 주세요`, lvl3List, 'lvl3');
         } else {
           toast.info(`'${keyword}' 주제에 등록된 질문이 없습니다.`);
         }
@@ -286,7 +291,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
         toast.info(`'${keyword}' 주제에 등록된 질문이 없습니다.`);
       }
     } catch (error) {
-      console.error('FAQ lvl3 질문 로드 실패:', error);
+      console.error('계층 구조 lvl3 목록 로드 실패:', error);
       setFaqLevel3Questions([]);
       // toast.error는 제거 (잠자는 돌콩이 알림창이 대신 표시됨)
     } finally {
@@ -294,25 +299,29 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
     }
   };
 
-  // lvl3 질문 클릭 핸들러
+  // lvl3 질문 클릭 핸들러 (계층 구조 조회 API 사용)
   const handleLevel3Click = async (item: string | FAQKeyword) => {
     const question = getKeywordString(item);
     try {
       setIsLoadingFAQ(true);
       // 사용자 선택 메시지 남기기
       appendUserMessage(question);
-      const response = await apiClient.getFAQAnswer(question);
-      if (response.status === 'success' && response.answer) {
+      // 계층 구조 조회 API 호출: lvl1, lvl2, lvl3 값으로 lvl4 내용 조회
+      const response = await apiClient.getHierarchyLevel4(selectedLevel1, selectedLevel2, question);
+      if (response.status === 'success' && response.contents && response.contents.length > 0) {
+        // lvl4 내용들을 하나의 메시지로 합치기 (순번, 출처 제거)
+        const contentText = response.contents
+          .map((content) => content.content)
+          .join('\n\n');
+        
         // 답변을 채팅 메시지로 추가
         const assistantMessage: ChatMessage = {
           id: Date.now().toString(),
           role: 'assistant',
-          content: response.answer,
+          content: contentText,
           timestamp: new Date()
         };
         setMessages(prev => [...prev, assistantMessage]);
-        
-        // FAQ 패널 제거됨: 패널 닫기 로직 삭제
         
         // FAQ 상태 초기화
         setFaqLevel1Keywords([]);
@@ -324,12 +333,13 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
         // lvl1 키워드 다시 로드
         loadFAQLevel1Keywords();
         
-        toast.success('FAQ 답변을 불러왔습니다.');
+        toast.success(`계층 구조 조회 완료: ${response.count}개 항목을 찾았습니다.`);
       } else {
-        toast.warning('해당 질문에 대한 답변을 찾을 수 없습니다.');
+        toast.warning('해당 계층 구조에 대한 내용을 찾을 수 없습니다.');
       }
     } catch (error) {
-      console.error('FAQ 답변 로드 실패:', error);
+      console.error('계층 구조 lvl4 내용 조회 실패:', error);
+      toast.warning('계층 구조 조회 중 오류가 발생했습니다.');
       // toast.error는 제거 (잠자는 돌콩이 알림창이 대신 표시됨)
     } finally {
       setIsLoadingFAQ(false);

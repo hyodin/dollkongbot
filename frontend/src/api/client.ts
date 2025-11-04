@@ -451,6 +451,77 @@ class ApiClient {
   }
 
   /**
+   * 계층 구조 조회 API
+   * 파일 업로드 후 파싱된 계층 구조 데이터 조회
+   */
+  
+  /**
+   * lvl1 목록 조회
+   */
+  async getHierarchyLevel1(): Promise<{
+    status: string;
+    lvl1_categories: string[];
+    count: number;
+  }> {
+    const response = await this.client.get('/hierarchy/lvl1');
+    return response.data;
+  }
+
+  /**
+   * 특정 lvl1에 속한 lvl2 목록 조회
+   */
+  async getHierarchyLevel2(lvl1: string): Promise<{
+    status: string;
+    lvl1: string;
+    lvl2_categories: string[];
+    count: number;
+  }> {
+    const response = await this.client.get(`/hierarchy/lvl2/${encodeURIComponent(lvl1)}`);
+    return response.data;
+  }
+
+  /**
+   * 특정 lvl1, lvl2에 속한 lvl3 목록 조회
+   */
+  async getHierarchyLevel3(lvl1: string, lvl2: string): Promise<{
+    status: string;
+    lvl1: string;
+    lvl2: string;
+    lvl3_categories: string[];
+    count: number;
+  }> {
+    const response = await this.client.get(
+      `/hierarchy/lvl3/${encodeURIComponent(lvl1)}/${encodeURIComponent(lvl2)}`
+    );
+    return response.data;
+  }
+
+  /**
+   * 특정 lvl1, lvl2, lvl3에 해당하는 lvl4 내용 조회
+   */
+  async getHierarchyLevel4(lvl1: string, lvl2: string, lvl3: string): Promise<{
+    status: string;
+    hierarchy: {
+      lvl1: string;
+      lvl2: string;
+      lvl3: string;
+    };
+    contents: Array<{
+      content: string;
+      context_text: string;
+      source: string;
+      sheet_name: string;
+      cell_address: string;
+    }>;
+    count: number;
+  }> {
+    const response = await this.client.get(
+      `/hierarchy/lvl4/${encodeURIComponent(lvl1)}/${encodeURIComponent(lvl2)}/${encodeURIComponent(lvl3)}`
+    );
+    return response.data;
+  }
+
+  /**
    * 문의 메일 발송
    */
   async sendInquiryEmail(request: EmailRequest): Promise<EmailResponse> {
