@@ -113,7 +113,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
     const userMessage: ChatMessage = {
       id: `${Date.now()}-u`,
       role: 'user',
-      content: `${text} 선택`,
+      content: `${text}`,
       timestamp: new Date()
     };
     setMessages(prev => [...prev, userMessage]);
