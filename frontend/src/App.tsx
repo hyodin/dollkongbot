@@ -536,7 +536,7 @@ function MainApp() {
               <div className="dollkong-avatar" style={{width: '20px', height: '20px'}}>
                 <img src="./assets/dollkong.png" alt="돌콩이" />
               </div>
-              <span>© 2025 돌콩이 AI 어시스턴트</span>
+              <span>© 2025 돌콩이 AI 어시스턴트 - 돌콩이도 때론 실수할 수 있습니다.</span>
             </div>
           </div>
         </div>
