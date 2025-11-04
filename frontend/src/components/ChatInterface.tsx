@@ -432,7 +432,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
       <div className="dollkong-header">
         <div className="dollkong-fixed mx-auto px-6 w-full flex items-center gap-3">
           <div className="dollkong-avatar">
-            <img src="/dollkong.png" alt="돌콩이" />
+            <img src="./assets/dollkong.png" alt="돌콩이" />
           </div>
           <div className="flex-1">
             <h2 className="text-lg font-bold">돌콩이 AI 어시스턴트</h2>
@@ -521,7 +521,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
           <div className="mt-6">
             <div className="dollkong-message-container">
               <div className="dollkong-avatar">
-                <img src="/dollkong.png" alt="돌콩이" />
+                <img src="./assets/dollkong.png" alt="돌콩이" />
               </div>
               <div className="dollkong-chat-bubble assistant">
                 <div className="whitespace-pre-wrap">
@@ -606,7 +606,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
               {/* 돌콩이 아바타 (assistant만) */}
               {message.role === 'assistant' && (
                 <div className="dollkong-avatar">
-                  <img src="/dollkong.png" alt="돌콩이" />
+                  <img src="./assets/dollkong.png" alt="돌콩이" />
                 </div>
               )}
               
@@ -718,7 +718,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
         {isLoading && (
           <div className="dollkong-message-container">
             <div className="dollkong-avatar">
-              <img src="/dollkong.png" alt="돌콩이" />
+              <img src="./assets/dollkong.png" alt="돌콩이" />
             </div>
             <div className="dollkong-typing-indicator">
               <span>돌콩이가 답변을 준비하고 있어요...</span>

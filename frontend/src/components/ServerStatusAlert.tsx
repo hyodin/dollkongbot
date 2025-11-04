@@ -54,7 +54,7 @@ const ServerStatusAlert: React.FC<ServerStatusAlertProps> = ({ className = '' })
        <div className="bg-white border-4 border-yellow-300 rounded-lg shadow-lg p-6 max-w-md mx-4">
         {/* 잠자는 돌콩이 이미지 */}
         <div className="w-40 h-40 mx-auto mb-4 flex items-center justify-center">
-          <img src="/zZdollkong.png" alt="잠자는 돌콩이" className="w-40 h-40 object-contain" />
+          <img src="./assets/zZdollkong.png" alt="잠자는 돌콩이" className="w-40 h-40 object-contain" />
         </div>
         {/* 메시지 */}
         <div className="text-center mb-4">

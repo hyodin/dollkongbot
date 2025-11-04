@@ -250,7 +250,7 @@ function MainApp() {
             <>
               {/* 기본 로그인 이동 화면 */}
               <div className="w-64 h-64 mx-auto mb-8 flex items-center justify-center animate-pulse">
-                <img src="/dollkong.png" alt="돌콩이" className="w-64 h-64 object-contain" />
+                <img src="./assets/dollkong.png" alt="돌콩이" className="w-64 h-64 object-contain" />
               </div>
               
               <h2 className="text-4xl font-bold text-gray-900 mb-4">
@@ -269,7 +269,7 @@ function MainApp() {
           ) : (
             <>
               <div className="w-64 h-64 mx-auto mb-8 flex items-center justify-center animate-pulse">
-                <img src="/zZdollkong.png" alt="잠자는 돌콩이" className="w-64 h-64 object-contain" />
+                <img src="./assets/zZdollkong.png" alt="잠자는 돌콩이" className="w-64 h-64 object-contain" />
               </div>
               <h2 className="text-4xl font-bold text-gray-900 mb-4">
                 잠자는 돌콩이
@@ -303,7 +303,7 @@ function MainApp() {
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-3">
               <div className="w-8 h-8 rounded-lg overflow-hidden flex items-center justify-center bg-gray-100">
-                <img src="/dollkong.png" alt="dollkong" className="w-8 h-8 object-contain" />
+                <img src="./assets/dollkong.png" alt="dollkong" className="w-8 h-8 object-contain" />
               </div>
               <div>
                 <h1 className="text-xl font-bold text-gray-900">
@@ -534,7 +534,7 @@ function MainApp() {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2 text-sm text-gray-600">
               <div className="dollkong-avatar" style={{width: '20px', height: '20px'}}>
-                <img src="/dollkong.png" alt="돌콩이" />
+                <img src="./assets/dollkong.png" alt="돌콩이" />
               </div>
               <span>© 2025 돌콩이 AI 어시스턴트</span>
             </div>
