@@ -95,11 +95,27 @@ async def chat_with_documents(request: ChatRequest):
                 detail="LLM 서비스 상태 확인 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
             )
         
+        # 1-1. 질문 의도 분류 (LLM 먼저 태우기)
+        logger.info("=" * 70)
+        logger.info("🤖 질문 의도 분류 시작")
+        logger.info("=" * 70)
+        intent_classification = await llm_service.classify_query_intent(request.question)
+        needs_document_search = intent_classification.get("needs_document_search", True)
+        intent_type = intent_classification.get("intent_type", "unknown")
+        confidence = intent_classification.get("confidence", 0.0)
+        
+        logger.info(f"📊 의도 분류 결과:")
+        logger.info(f"   - 문서 검색 필요: {needs_document_search}")
+        logger.info(f"   - 의도 유형: {intent_type}")
+        logger.info(f"   - 신뢰도: {confidence}")
+        if intent_classification.get("reasoning"):
+            logger.info(f"   - 이유: {intent_classification.get('reasoning')}")
+        
         search_time_start = time.time()
         context_documents = []
         
-        # 2. 문서 검색 (컨텍스트 사용 시)
-        if request.use_context:
+        # 2. 문서 검색 (컨텍스트 사용 시 + 문서 검색 필요할 때만)
+        if request.use_context and needs_document_search:
             try:
                 logger.info("=" * 70)
                 logger.info(f"🔍 RAG 검색 시작")
@@ -190,6 +206,12 @@ async def chat_with_documents(request: ChatRequest):
             except Exception as e:
                 logger.error(f"❌ 문서 검색 실패: {str(e)}", exc_info=True)
                 logger.error(f"검색 파라미터: query='{request.question}', limit={request.max_results}, threshold={request.score_threshold}")
+        elif request.use_context and not needs_document_search:
+            # 일반 대화로 분류된 경우 문서 검색 건너뛰기
+            logger.info("━" * 60)
+            logger.info(f"💬 일반 대화로 분류됨 - 문서 검색 건너뛰기")
+            logger.info(f"   의도: {intent_type}")
+            logger.info("━" * 60)
         
         search_time = time.time() - search_time_start
         
