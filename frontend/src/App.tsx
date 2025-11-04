@@ -275,7 +275,7 @@ function MainApp() {
                 잠자는 돌콩이
               </h2>
               <p className="text-lg text-gray-600 mb-8">
-                돌콩이가 잠을 자고 있습니다. 잠시 후 다시 시도해주세요.
+                돌콩이가 잠을 자고 있습니다. 잠시 후 다시 시도해주세요. zzZZ
               </p>
             </>
           )}

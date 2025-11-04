@@ -61,7 +61,7 @@ class ServerStatusManager {
    * 서버 연결 실패 시 사용자 친화적 메시지 생성
    */
   getServerOfflineMessage(): string {
-    return '돌콩이가 잠을 자고 있습니다.\n잠시 뒤 다시 시도해주세요 zzZZ';
+    return '돌콩이가 잠을 자고 있습니다.\n잠시 후 다시 시도해주세요. zzZZ';
   }
 }
 

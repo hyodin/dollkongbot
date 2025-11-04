@@ -63,7 +63,7 @@ const ServerStatusAlert: React.FC<ServerStatusAlertProps> = ({ className = '' })
           </h3>
           <p className="text-lg text-gray-600">
             돌콩이가 잠을 자고 있습니다.<br />
-            잠시 뒤 다시 시도해주세요. zzZZ
+            잠시 후 다시 시도해주세요. zzZZ
           </p>
         </div>
         
