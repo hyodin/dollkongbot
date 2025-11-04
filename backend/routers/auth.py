@@ -259,8 +259,8 @@ async def naverworks_callback(request: OAuthCallbackRequest):
                 if org_name:
                     logger.info(f"사용자 조직 정보: {org_name}")
                     
-                    # 관리자 조직인지 확인 (AI기반SW개발Unit)
-                    if org_name == "AI기반SW개발Unit":
+                    # 관리자 조직인지 확인 (경영관리 Unit)
+                    if org_name == "경영관리 Unit":
                         is_admin = True
                         logger.info(f"✓ 관리자 확인: {user_data['name']} (조직: {org_name})")
                     else:
@@ -408,7 +408,7 @@ async def verify_admin(authorization: Optional[str] = Header(None)) -> bool:
                 org_name = org_unit.get("orgUnitName", "")
         
         # 관리자 조직 확인
-        is_admin = (org_name == "AI기반SW개발Unit")
+        is_admin = (org_name == "경영관리 Unit")
         
         if not is_admin:
             raise HTTPException(status_code=403, detail="관리자 권한이 필요합니다")
