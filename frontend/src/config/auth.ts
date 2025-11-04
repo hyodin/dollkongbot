@@ -1,16 +1,10 @@
-/**
- * 인증 관련 프론트엔드 설정
- * - 만료 임박 버퍼를 외부 구성으로 관리
- * - 환경 변수(VITE_TOKEN_EXPIRY_BUFFER_MINUTES) 또는 로컬스토리지(token_expiry_buffer_minutes) 우선
- * - 기본값은 2분
- */
-
 export function getExpiryBufferMs(): number {
   try {
-    const fromEnv = (import.meta as any)?.env?.VITE_TOKEN_EXPIRY_BUFFER_MINUTES as string | undefined;
-    const fromLocal = localStorage.getItem('token_expiry_buffer_minutes') || undefined;
+    const env = import.meta.env;
+    const fromEnv = env.VITE_TOKEN_EXPIRY_BUFFER_MINUTES;
+    const fromLocal = localStorage.getItem('token_expiry_buffer_minutes');
     const minutesStr = fromEnv || fromLocal;
-    const minutes = minutesStr ? Number(minutesStr) : 2; // 기본 2분
+    const minutes = minutesStr ? Number(minutesStr) : 2;
     const bufferMs = minutes * 60 * 1000;
     if (!Number.isFinite(bufferMs) || bufferMs <= 0) {
       return 2 * 60 * 1000;
@@ -22,19 +16,15 @@ export function getExpiryBufferMs(): number {
   }
 }
 
-/**
- * 네이버웍스 로그인 URL 생성
- * - 환경변수 우선 (VITE_NAVERWORKS_CLIENT_ID, VITE_NAVERWORKS_REDIRECT_URI, VITE_NAVERWORKS_SCOPE)
- * - 환경변수가 없으면 빌드 모드(MODE)에 따라 자동 설정
- *   - dev: https://localhost:3005
- *   - prod: https://www.yncsmart.com/dollkongbot/
- */
 export function getNaverworksAuthUrl(): string {
   try {
-    const env = (import.meta as any)?.env || {};
+    const env = import.meta.env;
     const mode = env.MODE || 'dev';
     
-    // 환경 변수가 없으면 MODE에 따라 자동 설정
+    console.log('[Auth] MODE:', mode);
+    console.log('[Auth] CLIENT_ID:', env.VITE_NAVERWORKS_CLIENT_ID);
+    console.log('[Auth] REDIRECT_URI:', env.VITE_NAVERWORKS_REDIRECT_URI);
+    
     const clientId = env.VITE_NAVERWORKS_CLIENT_ID || 'KG7nswiEUqq3499jB5Ih';
     const redirectUri = env.VITE_NAVERWORKS_REDIRECT_URI || (
       mode === 'dev' 
@@ -43,7 +33,7 @@ export function getNaverworksAuthUrl(): string {
     );
     const scope = env.VITE_NAVERWORKS_SCOPE || 'user.read,mail';
 
-    console.log(`[Auth] 환경: ${mode}, Redirect URI: ${redirectUri}`);
+    console.log('[Auth] 환경:', mode, 'Redirect URI:', redirectUri);
 
     const params = new URLSearchParams({
       client_id: clientId,
@@ -52,11 +42,9 @@ export function getNaverworksAuthUrl(): string {
       scope,
       state: 'naverworks_auth'
     });
-    return `https://auth.worksmobile.com/oauth2/v2.0/authorize?${params.toString()}`;
+    return 'https://auth.worksmobile.com/oauth2/v2.0/authorize?' + params.toString();
   } catch (e) {
-    console.error('[authConfig] getNaverworksAuthUrl error:', e);
+    console.error('[authConfig] error:', e);
     return 'https://auth.worksmobile.com/oauth2/v2.0/authorize';
   }
 }
-
-
