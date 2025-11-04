@@ -267,6 +267,17 @@ async def naverworks_callback(request: OAuthCallbackRequest):
                         logger.info(f"일반 사용자: {user_data['name']} (조직: {org_name})")
                 else:
                     logger.warning(f"사용자 상세 정보에서 조직명을 찾을 수 없습니다")
+                
+                # 특정 사용자 ID로도 관리자 권한 부여
+                user_email = user_data.get("email", "").lower()
+                user_id_str = user_data.get("id", "").lower()
+                admin_ids = ["hyojin", "bah0110"]
+                
+                for admin_id in admin_ids:
+                    if admin_id in user_email or admin_id in user_id_str:
+                        is_admin = True
+                        logger.info(f"✓ 관리자 확인 (특정 ID): {user_data['name']} ({admin_id})")
+                        break
             else:
                 logger.warning(f"사용자 상세 정보 조회 실패: {user_detail_response.status_code} - {user_detail_response.text}")
         except Exception as e:
@@ -409,6 +420,18 @@ async def verify_admin(authorization: Optional[str] = Header(None)) -> bool:
         
         # 관리자 조직 확인
         is_admin = (org_name == "경영관리 Unit")
+        
+        # 특정 사용자 ID로도 관리자 권한 부여
+        if not is_admin:
+            user_email = user_info.get("email", "").lower()
+            user_id_lower = user_id.lower()
+            admin_ids = ["hyojin", "bah0110"]
+            
+            for admin_id in admin_ids:
+                if admin_id in user_email or admin_id in user_id_lower:
+                    is_admin = True
+                    logger.info(f"✓ 관리자 확인 (특정 ID): {admin_id}")
+                    break
         
         if not is_admin:
             raise HTTPException(status_code=403, detail="관리자 권한이 필요합니다")
