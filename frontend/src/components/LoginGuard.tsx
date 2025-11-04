@@ -55,12 +55,6 @@ const LoginGuard: React.FC<LoginGuardProps> = ({ children }) => {
     setIsLoggedIn(true);
   };
 
-  // 로그아웃 처리
-  const handleLogout = () => {
-    setUser(undefined);
-    setIsLoggedIn(false);
-  };
-
   // 로딩 중
   if (isLoading) {
     return (
@@ -112,7 +106,6 @@ const LoginGuard: React.FC<LoginGuardProps> = ({ children }) => {
             <div className="flex justify-center">
               <NaverWorksLogin
                 onLoginSuccess={handleLoginSuccess}
-                onLogout={handleLogout}
                 isLoggedIn={isLoggedIn}
                 user={user}
               />

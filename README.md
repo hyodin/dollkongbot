@@ -41,13 +41,65 @@ Backend (FastAPI)
    질문 → 벡터 검색 → 관련 문서 추출 → Gemini Pro → 답변 생성
    ```
 
+## 🔧 환경 변수 설정
+
+프로젝트를 시작하기 전에 환경 변수를 설정해야 합니다.
+
+**👉 [환경 변수 설정 가이드 문서](./ENV_SETUP_GUIDE.md)**를 참고하세요.
+
+### 🆕 환경 분기 처리 (로컬/운영)
+
+이제 로컬과 운영 환경을 자동으로 구분합니다!
+
+- **로컬 환경**: `ENV=local` → `.env.local` 파일 사용
+- **운영 환경**: `ENV=production` → `.env.production` 파일 사용
+- **기본값**: 환경변수 미설정 시 `local` 사용
+
+### 빠른 시작
+
+#### 로컬 개발 환경 설정
+
+```bash
+# 1. 백엔드 환경변수 설정 (로컬)
+cd backend
+copy env.local.example .env.local  # Windows
+# cp env.local.example .env.local  # Linux/Mac
+# .env.local 파일에서 GOOGLE_API_KEY 등 필수값 설정
+
+# 2. 프론트엔드 환경변수 설정 (로컬)
+cd ../frontend
+copy env.local.example .env.local  # Windows
+# cp env.local.example .env.local  # Linux/Mac
+# .env.local 파일에서 VITE_NAVERWORKS_CLIENT_ID 등 필수값 설정
+```
+
+#### 운영 환경 설정
+
+```bash
+# 1. 백엔드 환경변수 설정 (운영)
+cd backend
+copy env.production.example .env.production  # Windows
+# cp env.production.example .env.production  # Linux/Mac
+# .env.production 파일에서 운영용 API 키 등 설정
+
+# 2. 프론트엔드 환경변수 설정 (운영)
+cd ../frontend
+copy env.production.example .env.production  # Windows
+# cp env.production.example .env.production  # Linux/Mac
+# .env.production 파일에서 운영용 도메인 등 설정
+```
+
+### 필수 환경 변수
+- **백엔드**: `GOOGLE_API_KEY`, `NAVERWORKS_CLIENT_ID`, `NAVERWORKS_CLIENT_SECRET`
+- **프론트엔드**: `VITE_NAVERWORKS_CLIENT_ID`, `VITE_NAVERWORKS_REDIRECT_URI`
+
 ## 📦 배포 가이드
 
 프로덕션 서버에 배포하려면 **[배포 가이드 문서](./DEPLOYMENT_GUIDE.md)**를 참고하세요.
 
 - Rocky Linux 9.6 배포 방법
 - systemd 서비스 설정
-- Apache 프록시 설정
+- Nginx/Apache 프록시 설정
 - 포트 및 방화벽 구성
 
 ## 🚀 빠른 시작
@@ -136,22 +188,54 @@ npm run dev
    docker run -d --name qdrant -p 6333:6333 -p 6334:6334 qdrant/qdrant:latest
    ```
 
-2. **백엔드 시작**
+2. **백엔드 시작 (환경별)**
+   
+   **로컬 개발 환경:**
+   ```bash
+   # Windows
+   start-backend-local.bat
+   
+   # 또는 수동으로
+   cd backend
+   set ENV=local          # Windows
+   # export ENV=local     # Linux/Mac
+   python main.py
+   ```
+   
+   **운영 환경:**
+   ```bash
+   # Windows
+   start-backend-production.bat
+   
+   # 또는 수동으로
+   cd backend
+   set ENV=production      # Windows
+   # export ENV=production # Linux/Mac
+   python main.py
+   ```
+   
+   **기본 실행 (로컬 환경 기본값):**
    ```bash
    # Windows
    start-backend.bat
    
-   # 또는 수동으로
+   # ENV 미설정 시 자동으로 local 환경 사용
    cd backend && python main.py
    ```
 
 3. **프론트엔드 시작**
    ```bash
+   # 개발 환경 (자동으로 .env.local 사용)
    # Windows
    start-frontend.bat
    
    # 또는 수동으로
    cd frontend && npm run dev
+   
+   # 운영 환경 빌드
+   cd frontend
+   npm run build  # .env.production 사용
+   npm run preview
    ```
 
 #### 서비스 URL
@@ -404,4 +488,4 @@ Issues와 Pull Requests를 환영합니다!
 ---
 
 **개발 환경**: Cursor AI  
-**최종 업데이트**: 2025년 9월 30일
+**최종 업데이트**: 2025년 11월 3일

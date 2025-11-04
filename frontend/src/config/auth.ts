@@ -25,14 +25,25 @@ export function getExpiryBufferMs(): number {
 /**
  * 네이버웍스 로그인 URL 생성
  * - 환경변수 우선 (VITE_NAVERWORKS_CLIENT_ID, VITE_NAVERWORKS_REDIRECT_URI, VITE_NAVERWORKS_SCOPE)
- * - 기본값은 현 개발 환경과 동일하게 설정
+ * - 환경변수가 없으면 빌드 모드(MODE)에 따라 자동 설정
+ *   - dev: https://localhost:3005
+ *   - prod: https://www.yncsmart.com/dollkongbot/
  */
 export function getNaverworksAuthUrl(): string {
   try {
     const env = (import.meta as any)?.env || {};
+    const mode = env.MODE || 'dev';
+    
+    // 환경 변수가 없으면 MODE에 따라 자동 설정
     const clientId = env.VITE_NAVERWORKS_CLIENT_ID || 'KG7nswiEUqq3499jB5Ih';
-    const redirectUri = env.VITE_NAVERWORKS_REDIRECT_URI || 'https://www.yncsmart.com/dollkongbot/';
+    const redirectUri = env.VITE_NAVERWORKS_REDIRECT_URI || (
+      mode === 'dev' 
+        ? 'https://alphonso-holocrine-candi.ngrok-free.dev/dollkongbot/' 
+        : 'https://www.yncsmart.com/dollkongbot/'
+    );
     const scope = env.VITE_NAVERWORKS_SCOPE || 'user.read,mail';
+
+    console.log(`[Auth] 환경: ${mode}, Redirect URI: ${redirectUri}`);
 
     const params = new URLSearchParams({
       client_id: clientId,

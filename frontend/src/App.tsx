@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { formatExpiryForStorage } from './utils/tokenManager';
+import { getNaverworksAuthUrl } from './config/auth';
 
 import FileUpload from './components/FileUpload';
 import SearchBar from './components/SearchBar';
@@ -42,7 +43,7 @@ function MainApp() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [user, setUser] = useState<NaverWorksUser | undefined>(undefined);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [isRedirecting, setIsRedirecting] = useState(false);
+  const [isRedirecting] = useState(false);
 
   // 컴포넌트 마운트 시 문서 목록 로드 및 OAuth 콜백 처리
   useEffect(() => {
@@ -60,19 +61,8 @@ function MainApp() {
         
         if (!token || !userData) {
           // 로그인 기록이 없으면 바로 네이버웍스 로그인 페이지로 리다이렉트
-          const CLIENT_ID = 'KG7nswiEUqq3499jB5Ih';
-          const REDIRECT_URI = 'https://www.yncsmart.com/dollkongbot/';
-          const SCOPE = 'user.read,mail';
-          
-          const params = new URLSearchParams({
-            client_id: CLIENT_ID,
-            redirect_uri: REDIRECT_URI,
-            response_type: 'code',
-            scope: SCOPE,
-            state: 'naverworks_auth'
-          });
-          
-          const authUrl = `https://auth.worksmobile.com/oauth2/v2.0/authorize?${params.toString()}`;
+          // 환경에 따라 자동으로 설정된 URL 사용
+          const authUrl = getNaverworksAuthUrl();
           console.log('로그인 기록 없음, 네이버웍스 로그인 페이지로 리다이렉트...');
           window.location.href = authUrl;
           return;
@@ -188,46 +178,6 @@ function MainApp() {
     console.log('로그인 성공:', { user, isAdmin: adminStatus });
   }, []); // 의존성 없음 - localStorage와 setState만 사용
 
-  // 로그아웃 처리
-  const handleLogout = useCallback(() => {
-    // 리다이렉트 화면 전환
-    setIsRedirecting(true);
-
-    setUser(undefined);
-    setIsAdmin(false);
-    setIsLoggedIn(false);
-    localStorage.removeItem('naverworks_user');
-    localStorage.removeItem('naverworks_token');
-    localStorage.removeItem('naverworks_is_admin');
-    localStorage.removeItem('naverworks_refresh_token');
-    localStorage.removeItem('naverworks_expires_in');
-    localStorage.removeItem('naverworks_token_expiry_ms');
-    localStorage.removeItem('naverworks_token_type');
-    localStorage.removeItem('naverworks_scope');
-    toast.success('로그아웃되었습니다');
-
-    // 로그아웃 후 네이버웍스 로그인 페이지로 즉시 리다이렉트
-    const CLIENT_ID = 'KG7nswiEUqq3499jB5Ih';
-    const REDIRECT_URI = 'https://www.yncsmart.com/dollkongbot/';
-    const SCOPE = 'user.read,mail';
-
-    const params = new URLSearchParams({
-      client_id: CLIENT_ID,
-      redirect_uri: REDIRECT_URI,
-      response_type: 'code',
-      scope: SCOPE,
-      state: 'naverworks_auth'
-    });
-
-    const authUrl = `https://auth.worksmobile.com/oauth2/v2.0/authorize?${params.toString()}`;
-
-    try {
-      window.location.href = authUrl;
-    } catch (_e) {
-      // 에러 시에는 리다이렉트 화면 유지
-    }
-  }, []);
-
   // 문서 목록 로드
   const loadDocuments = async () => {
     try {
@@ -300,7 +250,7 @@ function MainApp() {
             <>
               {/* 기본 로그인 이동 화면 */}
               <div className="w-64 h-64 mx-auto mb-8 flex items-center justify-center animate-pulse">
-                <img src="/dollkong.png" alt="돌콩이" className="w-64 h-64 object-contain" />
+                <img src="./assets/dollkong.png" alt="돌콩이" className="w-64 h-64 object-contain" />
               </div>
               
               <h2 className="text-4xl font-bold text-gray-900 mb-4">
@@ -319,7 +269,7 @@ function MainApp() {
           ) : (
             <>
               <div className="w-64 h-64 mx-auto mb-8 flex items-center justify-center animate-pulse">
-                <img src="/zZdollkong.png" alt="잠자는 돌콩이" className="w-64 h-64 object-contain" />
+                <img src="./assets/zZdollkong.png" alt="잠자는 돌콩이" className="w-64 h-64 object-contain" />
               </div>
               <h2 className="text-4xl font-bold text-gray-900 mb-4">
                 잠자는 돌콩이
@@ -337,7 +287,6 @@ function MainApp() {
         <div className="hidden">
           <NaverWorksLogin
             onLoginSuccess={handleLoginSuccess}
-            onLogout={handleLogout}
             isLoggedIn={isLoggedIn}
             user={user}
           />
@@ -354,7 +303,7 @@ function MainApp() {
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-3">
               <div className="w-8 h-8 rounded-lg overflow-hidden flex items-center justify-center bg-gray-100">
-                <img src="/dollkong.png" alt="dollkong" className="w-8 h-8 object-contain" />
+                <img src="./assets/dollkong.png" alt="dollkong" className="w-8 h-8 object-contain" />
               </div>
               <div>
                 <h1 className="text-xl font-bold text-gray-900">
@@ -415,7 +364,6 @@ function MainApp() {
               {/* 네이버웍스 로그인 */}
               <NaverWorksLogin
                 onLoginSuccess={handleLoginSuccess}
-                onLogout={handleLogout}
                 isLoggedIn={isLoggedIn}
                 user={user}
               />
@@ -586,7 +534,7 @@ function MainApp() {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2 text-sm text-gray-600">
               <div className="dollkong-avatar" style={{width: '20px', height: '20px'}}>
-                <img src="/dollkong.png" alt="돌콩이" />
+                <img src="./assets/dollkong.png" alt="돌콩이" />
               </div>
               <span>© 2025 돌콩이 AI 어시스턴트</span>
             </div>

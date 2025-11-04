@@ -144,10 +144,28 @@ async def _process_file_background(file_content: bytes, file_name: str) -> None:
 async def _process_file(file_content: bytes, file_name: str) -> Dict[str, Any]:
     """파일 처리 메인 로직"""
     try:
-        # 1. 파일 형식 확인
+        # 1. 중복 파일명 확인 및 삭제
+        vector_db = get_vector_db()
+        existing_files = vector_db.get_file_list()
+        
+        # 같은 이름의 파일이 있는지 확인
+        for existing_file in existing_files:
+            if existing_file.get('file_name') == file_name:
+                file_id_to_delete = existing_file.get('file_id')
+                logger.info(f"기존 파일 발견: {file_name} (ID: {file_id_to_delete})")
+                
+                # 기존 파일 삭제
+                delete_success = vector_db.delete_document(file_id_to_delete)
+                if delete_success:
+                    logger.info(f"기존 파일 삭제 완료: {file_name}")
+                else:
+                    logger.warning(f"기존 파일 삭제 실패: {file_name}")
+                break
+        
+        # 2. 파일 형식 확인
         file_ext = "." + file_name.lower().split('.')[-1]
         
-        # 2. 데이터 추출 (XLSX, PDF vs 기타)
+        # 3. 데이터 추출 (XLSX, PDF vs 기타)
         logger.info(f"데이터 추출 시작: {file_name}")
         extracted_data = await FileParser.extract_text(file_content, file_name)
         
@@ -313,7 +331,6 @@ async def _process_file(file_content: bytes, file_name: str) -> Dict[str, Any]:
         
         # 5. 벡터 DB 저장 (메타데이터와 함께)
         logger.info("벡터 DB 저장 시작")
-        vector_db = get_vector_db()
         file_id = vector_db.insert_documents(chunks, embeddings, file_name, file_ext, cell_metadata)
         
         logger.info(f"벡터 DB 저장 완료: 파일 ID {file_id}")
