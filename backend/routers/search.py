@@ -295,16 +295,25 @@ async def get_lvl2_categories(lvl1: str) -> Dict[str, Any]:
     """
     특정 대분류에 속한 중분류(lvl2) 목록 조회
     
+    필터링 조건 (SQL 쿼리 형태):
+    SELECT DISTINCT lvl2 FROM collection 
+    WHERE lvl1 = ?
+    
+    - 이전 단계 조건(lvl1)이 반영되어 필터링됨
+    - Qdrant Filter의 must 배열은 AND 조건으로 작동
+    
     Args:
-        lvl1: 대분류명
+        lvl1: 대분류명 (필수 조건)
         
     Returns:
-        중분류 목록
+        중분류 목록 (선택한 lvl1에 해당하는 lvl2만 반환)
     """
     try:
         vector_db = get_vector_db()
         
         # 특정 lvl1에 해당하는 데이터만 필터링하여 조회
+        # SQL: SELECT DISTINCT lvl2 FROM collection WHERE lvl1 = ?
+        # Qdrant Filter의 must 배열은 AND 조건: lvl1 조건을 만족하는 데이터만 반환
         search_result = vector_db.client.scroll(
             collection_name=vector_db.collection_name,
             scroll_filter=models.Filter(
@@ -346,17 +355,26 @@ async def get_lvl3_categories(lvl1: str, lvl2: str) -> Dict[str, Any]:
     """
     특정 대분류/중분류에 속한 소분류(lvl3) 목록 조회
     
+    필터링 조건 (SQL 쿼리 형태):
+    SELECT DISTINCT lvl3 FROM collection 
+    WHERE lvl1 = ? AND lvl2 = ?
+    
+    - 이전 단계 조건(lvl1, lvl2)이 모두 반영되어 필터링됨
+    - Qdrant Filter의 must 배열은 AND 조건으로 작동
+    
     Args:
-        lvl1: 대분류명
-        lvl2: 중분류명
+        lvl1: 대분류명 (필수 조건)
+        lvl2: 중분류명 (필수 조건)
         
     Returns:
-        소분류 목록
+        소분류 목록 (선택한 lvl1, lvl2에 해당하는 lvl3만 반환)
     """
     try:
         vector_db = get_vector_db()
         
         # 특정 lvl1, lvl2에 해당하는 데이터만 필터링하여 조회
+        # SQL: SELECT DISTINCT lvl3 FROM collection WHERE lvl1 = ? AND lvl2 = ?
+        # Qdrant Filter의 must 배열은 AND 조건: lvl1과 lvl2 조건을 모두 만족하는 데이터만 반환
         search_result = vector_db.client.scroll(
             collection_name=vector_db.collection_name,
             scroll_filter=models.Filter(
@@ -403,18 +421,27 @@ async def get_lvl4_content(lvl1: str, lvl2: str, lvl3: str) -> Dict[str, Any]:
     """
     특정 계층 구조의 상세 내용(lvl4) 조회
     
+    필터링 조건 (SQL 쿼리 형태):
+    SELECT lvl4 FROM collection 
+    WHERE lvl1 = ? AND lvl2 = ? AND lvl3 = ?
+    
+    - 이전 단계 조건(lvl1, lvl2, lvl3)이 모두 반영되어 필터링됨
+    - Qdrant Filter의 must 배열은 AND 조건으로 작동
+    
     Args:
-        lvl1: 대분류명
-        lvl2: 중분류명
-        lvl3: 소분류명
+        lvl1: 대분류명 (필수 조건)
+        lvl2: 중분류명 (필수 조건)
+        lvl3: 소분류명 (필수 조건)
         
     Returns:
-        상세 내용 및 관련 정보
+        상세 내용 및 관련 정보 (선택한 lvl1, lvl2, lvl3에 해당하는 lvl4만 반환)
     """
     try:
         vector_db = get_vector_db()
         
-        # 특정 계층 구조에 해당하는 데이터 조회
+        # 특정 계층 구조에 해당하는 데이터만 필터링하여 조회
+        # SQL: SELECT lvl4 FROM collection WHERE lvl1 = ? AND lvl2 = ? AND lvl3 = ?
+        # Qdrant Filter의 must 배열은 AND 조건: 모든 조건을 만족하는 데이터만 반환
         search_result = vector_db.client.scroll(
             collection_name=vector_db.collection_name,
             scroll_filter=models.Filter(
@@ -433,17 +460,26 @@ async def get_lvl4_content(lvl1: str, lvl2: str, lvl3: str) -> Dict[str, Any]:
                     )
                 ]
             ),
-            limit=100,
+            limit=1000,
             with_payload=True,
             with_vectors=False
         )
         
         contents = []
+        seen_contents = set()  # 중복 제거용 (content 텍스트 기준)
+        
         for point in search_result[0]:
             lvl4 = point.payload.get("lvl4", "")
             if lvl4 and lvl4.strip():
+                lvl4_cleaned = lvl4.strip()
+                
+                # 중복 제거: 동일한 lvl4 내용은 한 번만 포함 (DISTINCT 처리)
+                if lvl4_cleaned in seen_contents:
+                    continue
+                seen_contents.add(lvl4_cleaned)
+                
                 content_info = {
-                    "content": lvl4,
+                    "content": lvl4_cleaned,
                     "context_text": point.payload.get("context_text", ""),
                     "source": point.payload.get("file_name", ""),
                     "sheet_name": point.payload.get("sheet_name", ""),
