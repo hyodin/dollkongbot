@@ -456,6 +456,139 @@ JSON 형식으로만 응답해주세요:
             
             raise Exception(f"LLM 응답 생성 실패: {str(e)}")
 
+    async def evaluate_response_quality(self, question: str, answer: str, context_documents: List[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """
+        답변 품질을 평가합니다.
+        
+        Args:
+            question: 사용자 질문
+            answer: 생성된 답변
+            context_documents: 참조된 문서들 (있는 경우)
+            
+        Returns:
+            {
+                "is_low_quality": bool,  # 낮은 품질 여부
+                "quality_score": float,  # 품질 점수 (0.0-1.0)
+                "reason": str  # 평가 이유
+            }
+        """
+        try:
+            # 모델 상태 확인 및 재구성 (필요시)
+            if not hasattr(self, 'model') or self.model is None:
+                logger.warning("Gemini 모델이 초기화되지 않음. 재구성 중...")
+                self._configure_gemini()
+            
+            # 품질 평가 프롬프트
+            context_info = ""
+            if context_documents and len(context_documents) > 0:
+                context_info = f"\n참고 문서: {len(context_documents)}개 문서에서 정보를 찾았습니다."
+            else:
+                context_info = "\n참고 문서: 관련 문서를 찾지 못했습니다."
+            
+            evaluation_prompt = f"""다음 챗봇 답변의 품질을 평가해주세요.
+
+사용자 질문: {question}
+{context_info}
+챗봇 답변: {answer}
+
+평가 기준:
+1. **낮은 품질** (is_low_quality: true):
+   - 답변에 "죄송합니다", "알 수 없습니다", "찾을 수 없습니다" 등 불확실한 표현이 포함됨
+   - 문서에서 관련 정보를 찾지 못했다는 내용
+   - 구체적인 정보 없이 일반적인 안내만 제공
+   - 질문에 대한 명확한 답변을 제공하지 못함
+
+2. **높은 품질** (is_low_quality: false):
+   - 구체적이고 실용적인 정보 제공
+   - 문서 기반의 정확한 답변
+   - 사용자 질문에 대한 명확한 해결책 제시
+
+JSON 형식으로만 응답해주세요:
+{{
+    "is_low_quality": true 또는 false,
+    "quality_score": 0.0부터 1.0 사이의 숫자 (1.0이 최고 품질),
+    "reason": "평가 이유 (간단히)"
+}}
+
+응답 (JSON만):"""
+            
+            logger.debug(f"답변 품질 평가 시작: {answer[:50]}...")
+            
+            # Gemini API 호출
+            generation_config = genai.types.GenerationConfig(
+                max_output_tokens=200,
+                temperature=0.1,  # 낮은 온도로 일관된 평가
+                top_p=0.8,
+                top_k=40
+            )
+            
+            safety_settings = [
+                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
+            ]
+            
+            response = await asyncio.wait_for(
+                asyncio.to_thread(
+                    self.model.generate_content,
+                    evaluation_prompt,
+                    generation_config=generation_config,
+                    safety_settings=safety_settings
+                ),
+                timeout=10  # 빠른 평가
+            )
+            
+            # 응답 파싱
+            if not response or not hasattr(response, 'text'):
+                logger.warning("답변 품질 평가 실패: 유효하지 않은 응답")
+                # 기본값: 낮은 품질로 간주 (안전하게)
+                return {"is_low_quality": True, "quality_score": 0.3, "reason": "평가 실패"}
+            
+            response_text = response.text.strip()
+            
+            # JSON 파싱 시도
+            import json
+            import re
+            
+            # JSON 부분만 추출
+            json_match = re.search(r'\{[^{}]*"is_low_quality"[^{}]*\}', response_text, re.DOTALL)
+            if json_match:
+                json_str = json_match.group(0)
+            else:
+                # 전체 텍스트에서 JSON 찾기
+                json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+                if json_match:
+                    json_str = json_match.group(0)
+                else:
+                    json_str = response_text
+            
+            try:
+                result = json.loads(json_str)
+                is_low_quality = result.get("is_low_quality", True)  # 기본값은 낮은 품질
+                quality_score = result.get("quality_score", 0.3)
+                reason = result.get("reason", "평가 완료")
+                
+                logger.info(f"✅ 답변 품질 평가 완료: is_low_quality={is_low_quality}, score={quality_score:.2f}")
+                
+                return {
+                    "is_low_quality": bool(is_low_quality),
+                    "quality_score": float(quality_score),
+                    "reason": str(reason)
+                }
+            except json.JSONDecodeError:
+                logger.warning(f"답변 품질 평가 JSON 파싱 실패: {response_text}")
+                # 파싱 실패 시 기본값 반환
+                return {"is_low_quality": True, "quality_score": 0.3, "reason": "JSON 파싱 실패"}
+            
+        except asyncio.TimeoutError:
+            logger.warning("답변 품질 평가 타임아웃 - 기본값 반환")
+            return {"is_low_quality": True, "quality_score": 0.3, "reason": "평가 타임아웃"}
+        except Exception as e:
+            logger.error(f"답변 품질 평가 중 오류: {e}")
+            # 오류 발생 시 안전하게 낮은 품질로 간주
+            return {"is_low_quality": True, "quality_score": 0.3, "reason": f"평가 오류: {str(e)}"}
+
 # 전역 서비스 인스턴스
 _gemini_service: Optional[GeminiLLMService] = None
 

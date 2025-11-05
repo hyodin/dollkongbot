@@ -50,6 +50,8 @@ class ChatResponse(BaseModel):
     model_info: Dict[str, Any] = Field(..., description="사용된 모델 정보")
     processing_time: Dict[str, float] = Field(..., description="처리 시간 분석")
     token_usage: Dict[str, int] = Field(..., description="토큰 사용량")
+    is_low_quality: bool = Field(False, description="답변 품질이 낮은지 여부 (메일 문의 버튼 표시용)")
+    quality_score: float = Field(0.5, description="답변 품질 점수 (0.0-1.0)")
 
 class ChatHistoryRequest(BaseModel):
     """채팅 히스토리 요청 모델"""
@@ -235,9 +237,40 @@ async def chat_with_documents(request: ChatRequest):
         )
         
         generation_time = time.time() - generation_time_start
+        
+        # 4. 답변 품질 평가
+        quality_evaluation_start = time.time()
+        is_low_quality = False
+        quality_score = 0.5
+        
+        try:
+            logger.info("=" * 70)
+            logger.info("📊 답변 품질 평가 시작")
+            logger.info("=" * 70)
+            
+            quality_result = await llm_service.evaluate_response_quality(
+                question=request.question,
+                answer=llm_response["answer"],
+                context_documents=context_docs_dict
+            )
+            
+            is_low_quality = quality_result.get("is_low_quality", False)
+            quality_score = quality_result.get("quality_score", 0.5)
+            quality_reason = quality_result.get("reason", "")
+            
+            logger.info(f"✅ 품질 평가 완료: is_low_quality={is_low_quality}, score={quality_score:.2f}")
+            if quality_reason:
+                logger.info(f"   이유: {quality_reason}")
+        except Exception as quality_error:
+            logger.warning(f"⚠ 답변 품질 평가 실패: {str(quality_error)}")
+            # 평가 실패 시 기본값 사용 (낮은 품질로 간주)
+            is_low_quality = False
+            quality_score = 0.5
+        
+        quality_evaluation_time = time.time() - quality_evaluation_start
         total_time = time.time() - start_time
         
-        # 4. 응답 구성
+        # 5. 응답 구성
         response = ChatResponse(
             answer=llm_response["answer"],  # "response" -> "answer"로 수정
             question=request.question,
@@ -251,13 +284,16 @@ async def chat_with_documents(request: ChatRequest):
             processing_time={
                 "total": round(total_time, 3),
                 "search": round(search_time, 3),
-                "generation": round(generation_time, 3)
+                "generation": round(generation_time, 3),
+                "quality_evaluation": round(quality_evaluation_time, 3)
             },
             token_usage={
                 "prompt_tokens": llm_response.get("tokens_used", {}).get("input", 0),
                 "completion_tokens": llm_response.get("tokens_used", {}).get("output", 0),
                 "total_tokens": llm_response.get("tokens_used", {}).get("total", 0)
-            }
+            },
+            is_low_quality=is_low_quality,
+            quality_score=quality_score
         )
         
         logger.info(f"✅ RAG 채팅 완료 - 총 처리 시간: {total_time:.2f}초")
