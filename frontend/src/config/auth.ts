@@ -1,3 +1,7 @@
+/**
+ * 네이버웍스 인증 관련 유틸리티 함수
+ */
+
 export function getExpiryBufferMs(): number {
   try {
     const env = import.meta.env;

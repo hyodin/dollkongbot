@@ -10,13 +10,11 @@ import { formatExpiryForStorage } from './utils/tokenManager';
 import { getNaverworksAuthUrl } from './config/auth';
 
 import FileUpload from './components/FileUpload';
-import SearchBar from './components/SearchBar';
-import ResultList from './components/ResultList';
 import ChatInterface from './components/ChatInterface';
 import NaverWorksLogin from './components/NaverWorksLogin';
 import AdminPage from './components/AdminPage';
 import ServerStatusAlert from './components/ServerStatusAlert';
-import apiClient, { SearchResponse, SearchResult, UploadResponse, DocumentInfo } from './api/client';
+import apiClient, { UploadResponse, DocumentInfo } from './api/client';
 
 // 네이버웍스 사용자 타입
 interface NaverWorksUser {
@@ -41,12 +39,8 @@ interface BoardSyncStatus {
 
 // 메인 애플리케이션 컴포넌트
 function MainApp() {
-  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
-  const [currentQuery, setCurrentQuery] = useState('');
-  const [isSearching, setIsSearching] = useState(false);
   const [documents, setDocuments] = useState<DocumentInfo[]>([]);
-  const [processingTime, setProcessingTime] = useState<number>(0);
-  const [activeTab, setActiveTab] = useState<'search' | 'chat' | 'admin'>('chat');
+  const [activeTab, setActiveTab] = useState<'chat' | 'admin'>('chat');
   const [adminSubTab, setAdminSubTab] = useState<'documents' | 'faq'>('documents');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [user, setUser] = useState<NaverWorksUser | undefined>(undefined);
@@ -273,31 +267,6 @@ function MainApp() {
   const handleUploadStart = () => {
   };
 
-  // 검색 실행 처리
-  const handleSearch = (query: string, results: SearchResponse) => {
-    setCurrentQuery(query);
-    setSearchResults(results.results);
-    setProcessingTime(results.processing_time);
-    setIsSearching(false);
-  };
-
-  // 검색 시작 처리
-  const handleSearchStart = () => {
-    setIsSearching(true);
-    setSearchResults([]);
-  };
-
-  // 검색 오류 처리
-  const handleSearchError = (_error: string) => {
-    setIsSearching(false);
-    // toast.error는 제거 (잠자는 돌콩이 알림창이 대신 표시됨)
-  };
-
-  // 결과 클릭 처리
-  const handleResultClick = (result: SearchResult) => {
-    console.log('결과 클릭:', result);
-  };
-
   // 문서 삭제
   const handleDeleteDocument = async (fileId: string) => {
     if (!confirm('정말로 이 문서를 삭제하시겠습니까?')) return;
@@ -398,25 +367,9 @@ function MainApp() {
                       : 'bg-white text-gray-700 hover:bg-gray-50'
                   }`}
                 >
-                  <img src="/assets/dollkong.png" alt="돌콩이" className="w-5 h-5 object-contain" />
+                  <img src="./assets/dollkong.png" alt="돌콩이" className="w-5 h-5 object-contain" />
                   <span>돌콩이</span>
                 </button>
-                
-                {/* 문서 검색 탭 (비활성화)
-                <button
-                  onClick={() => {
-                    setActiveTab('search');
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  className={`px-4 py-2 text-sm font-medium transition-colors ${
-                    activeTab === 'search'
-                      ? 'bg-yellow-400 text-gray-900'
-                      : 'bg-white text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  🔍 문서 검색
-                </button>
-                */}
                 
                 {/* 관리자 전용: 관리자 탭 */}
                 {isLoggedIn && isAdmin && (
@@ -616,47 +569,6 @@ function MainApp() {
                   <AdminPage />
                 </div>
               )}
-            </div>
-          </div>
-        ) : activeTab === 'search' ? (
-          <div>
-            {/* 검색바 */}
-            <div className="card">
-              <div className="dollkong-fixed mx-auto px-6">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                  🔍 문서 검색
-                </h2>
-                <SearchBar
-                  onSearch={handleSearch}
-                  onSearchStart={handleSearchStart}
-                  onSearchError={handleSearchError}
-                  autoFocus={true}
-                />
-              </div>
-            </div>
-
-            {/* 검색 결과 */}
-            <div className="card">
-              <div className="dollkong-fixed mx-auto px-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-semibold text-gray-900">
-                    📋 검색 결과
-                  </h2>
-                  {currentQuery && (
-                    <div className="text-sm text-gray-500">
-                      "{currentQuery}" 검색 결과
-                      {processingTime > 0 && ` (${processingTime}초)`}
-                    </div>
-                  )}
-                </div>
-
-                <ResultList
-                  results={searchResults}
-                  query={currentQuery}
-                  isLoading={isSearching}
-                  onResultClick={handleResultClick}
-                />
-              </div>
             </div>
           </div>
         ) : (
