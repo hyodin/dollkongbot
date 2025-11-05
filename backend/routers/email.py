@@ -28,6 +28,7 @@ class EmailRequest(BaseModel):
     subject: str = Field(..., description="메일 제목", min_length=1, max_length=200)
     content: str = Field(..., description="메일 본문", min_length=1, max_length=5000)
     recipient_email: str = Field(..., description="수신자 이메일 주소", min_length=1, max_length=200)
+    cc_email: Optional[str] = Field(None, description="참조 이메일 주소 (세미콜론 구분)", max_length=200)
     user_question: str = Field(..., description="사용자 원본 질문")
     chat_response: str = Field(..., description="챗봇 응답")
     chat_history: List[Dict[str, Any]] = Field(default=[], description="대화 히스토리")
@@ -55,6 +56,8 @@ async def send_inquiry_email(request: EmailRequest):
         logger.info(f"📧 네이버웍스 문의 메일 발송 요청: {request.subject}")
         logger.info(f"📧 요청 데이터 - user_info: {request.user_info}")
         logger.info(f"📧 요청 데이터 - token_info: {request.token_info}")
+        logger.info(f"📧 수신자: {request.recipient_email}")
+        logger.info(f"📧 참조: {request.cc_email}")
         
         # 네이버웍스 이메일 서비스 가져오기
         email_service = get_naverworks_email_service()
@@ -99,6 +102,7 @@ async def send_inquiry_email(request: EmailRequest):
             chat_response=request.chat_response,
             additional_content=request.content,
             recipient_email=request.recipient_email,
+            cc_email=request.cc_email,  # 참조 추가
             subject=request.subject
         )
         

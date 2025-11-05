@@ -125,6 +125,7 @@ export interface EmailRequest {
   subject: string;
   content: string;
   recipient_email: string;
+  cc_email?: string;  // 참조 이메일 (선택적)
   user_question: string;
   chat_response: string;
   chat_history: Array<{

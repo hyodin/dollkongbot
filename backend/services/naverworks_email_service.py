@@ -181,7 +181,7 @@ class NaverWorksEmailService:
             return None
     
     
-    def send_inquiry_email(self, user_question: str, chat_response: str, additional_content: str = "", recipient_email: str = None, subject: str = None) -> Dict[str, Any]:
+    def send_inquiry_email(self, user_question: str, chat_response: str, additional_content: str = "", recipient_email: str = None, cc_email: str = None, subject: str = None) -> Dict[str, Any]:
         """사규 챗봇 문의 메일 발송 (OAuth 방식)"""
         try:
             # OAuth 토큰 확인
@@ -269,6 +269,27 @@ class NaverWorksEmailService:
                 # 단일 이메일 주소
                 to_emails = to_email.strip()
             
+            # 참조 이메일 처리
+            cc_emails = ""
+            if cc_email and cc_email.strip():
+                logger.info(f"📧 원본 참조 이메일: '{cc_email}'")
+                # 세미콜론 또는 콤마로 구분된 참조 이메일 처리
+                # 세미콜론(공백 포함/미포함 모두 처리)
+                if ';' in cc_email:
+                    # 세미콜론으로 구분 (공백 제거)
+                    email_list = [email.strip() for email in cc_email.split(';') if email.strip()]
+                    cc_emails = ';'.join(email_list)
+                elif ',' in cc_email:
+                    # 콤마로 구분된 경우 세미콜론으로 변환
+                    email_list = [email.strip() for email in cc_email.split(',') if email.strip()]
+                    cc_emails = ';'.join(email_list)
+                else:
+                    # 단일 이메일
+                    cc_emails = cc_email.strip()
+                logger.info(f"📧 처리된 참조 이메일: '{cc_emails}' (개수: {len(cc_emails.split(';')) if cc_emails else 0})")
+            else:
+                logger.info("📧 참조 이메일 없음")
+            
             # 네이버웍스 공식 문서에 따른 올바른 페이로드 구조
             # 공식 문서: https://developers.worksmobile.com/kr/docs/mail-create
             # 네이버웍스 API는 세미콜론 구분 문자열을 사용
@@ -284,6 +305,10 @@ class NaverWorksEmailService:
                 "attachments": []
             }
             
+            # 참조가 있으면 추가
+            if cc_emails:
+                payload["cc"] = cc_emails
+            
             # 네이버웍스 API 문서에 따른 대안 페이로드 구조
             # 일부 API 버전에서는 다른 필드명을 사용할 수 있음
             alternative_payload = {
@@ -298,6 +323,10 @@ class NaverWorksEmailService:
                 "attachments": []
             }
             
+            # 참조가 있으면 대안 페이로드에도 추가
+            if cc_emails:
+                alternative_payload["cc"] = cc_emails
+            
             # 400 오류 디버깅을 위한 상세 로그
             logger.info("=== 네이버웍스 API 요청 상세 정보 ===")
             logger.info(f"URL: {url}")
@@ -310,6 +339,8 @@ class NaverWorksEmailService:
             logger.info(f"올바른 엔드포인트: POST /v1.0/users/{{userId}}/mail")
             logger.info(f"사용자 ID: {user_id}")
             logger.info(f"발송자: {self.sender_email}, 수신자: {to_emails}")
+            if cc_emails:
+                logger.info(f"참조: {cc_emails}")
             logger.info(f"제목: {subject}")
             logger.info(f"OAuth 토큰: {self.access_token[:20]}...")
             logger.info(f"페이로드: {payload}")
@@ -382,6 +413,9 @@ class NaverWorksEmailService:
             
             # 첫 번째 시도: 기본 페이로드 구조
             logger.info("=== 첫 번째 시도: 기본 페이로드 구조 ===")
+            logger.info(f"페이로드에 CC 포함 여부: {'cc' in payload}")
+            if 'cc' in payload:
+                logger.info(f"CC 값: {payload['cc']}")
             response = requests.post(url, headers=headers, json=payload, timeout=30)
             
             # 400 오류인 경우 대안 페이로드 구조로 재시도
