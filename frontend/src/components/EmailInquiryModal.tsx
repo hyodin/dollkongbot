@@ -30,7 +30,7 @@ const EmailInquiryModal: React.FC<EmailInquiryModalProps> = ({
   chatResponse,
   chatHistory
 }) => {
-  const [recipientEmail, setRecipientEmail] = useState('');
+  const [recipientEmail] = useState(''); // setRecipientEmail은 비활성화됨
   const [selectedRecipients, setSelectedRecipients] = useState<RecipientOption[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<RecipientOption[]>([]);
