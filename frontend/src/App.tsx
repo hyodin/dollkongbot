@@ -31,6 +31,14 @@ interface NaverWorksUser {
   profile_image?: string;
 }
 
+// 게시판 동기화 상태 타입
+interface BoardSyncStatus {
+  is_running: boolean;
+  last_sync_time: string | null;
+  last_sync_status: string | null;
+  files_synced: number;
+}
+
 // 메인 애플리케이션 컴포넌트
 function MainApp() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
@@ -44,6 +52,69 @@ function MainApp() {
   const [user, setUser] = useState<NaverWorksUser | undefined>(undefined);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isRedirecting] = useState(false);
+  
+  // 게시판 동기화 상태
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<BoardSyncStatus | null>(null);
+
+  // 동기화 상태 로드
+  const loadSyncStatus = async () => {
+    try {
+      const response = await fetch('/api/dollkongbot/board/sync-status');
+      const data = await response.json();
+      setSyncStatus(data);
+    } catch (error) {
+      console.error('동기화 상태 조회 실패:', error);
+    }
+  };
+
+  // 게시판 첨부파일 동기화 실행
+  const syncBoardAttachments = async () => {
+    if (isSyncing) {
+      toast.warning('이미 동기화가 진행 중입니다.');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('naverworks_token');
+      if (!token) {
+        toast.error('로그인이 필요합니다.');
+        return;
+      }
+
+      setIsSyncing(true);
+      toast.info('게시판 첨부파일 동기화를 시작합니다...');
+
+      // TODO: 환경 변수로 게시판 ID 관리 필요
+      const BOARD_ID = '6044785668'; // 실제 게시판 ID로 교체 필요
+
+      const response = await fetch('/api/dollkongbot/board/sync-attachments', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          board_id: BOARD_ID,
+          title_keyword: '[복리후생] 직원 인사 복리후생 기준'
+        })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast.success(`동기화 완료: ${result.files_processed}개 파일 처리됨`);
+        loadSyncStatus();
+        loadDocuments(); // 문서 목록 새로고침
+      } else {
+        throw new Error(result.detail || '동기화 실패');
+      }
+    } catch (error: any) {
+      toast.error(`동기화 실패: ${error.message}`);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   // 컴포넌트 마운트 시 문서 목록 로드 및 OAuth 콜백 처리
   useEffect(() => {
@@ -321,14 +392,17 @@ function MainApp() {
                     setActiveTab('chat');
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
-                  className={`px-4 py-2 text-sm font-medium transition-colors ${
+                  className={`px-4 py-2 text-sm font-medium transition-colors flex items-center space-x-1.5 ${
                     activeTab === 'chat'
                       ? 'bg-yellow-400 text-gray-900'
                       : 'bg-white text-gray-700 hover:bg-gray-50'
                   }`}
                 >
-                  🤖 RAG 채팅
+                  <img src="/assets/dollkong.png" alt="돌콩이" className="w-5 h-5 object-contain" />
+                  <span>돌콩이</span>
                 </button>
+                
+                {/* 문서 검색 탭 (비활성화)
                 <button
                   onClick={() => {
                     setActiveTab('search');
@@ -342,6 +416,7 @@ function MainApp() {
                 >
                   🔍 문서 검색
                 </button>
+                */}
                 
                 {/* 관리자 전용: 관리자 탭 */}
                 {isLoggedIn && isAdmin && (
@@ -376,7 +451,6 @@ function MainApp() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-0 pb-8 flex-1 flex flex-col">
         {/* 탭 컨텐츠 */}
         {activeTab === 'admin' ? (
-          /* 관리자 탭 */
           <div className="flex flex-col h-full">
             {/* 서브 탭 네비게이션 (고정) */}
             <div className="flex border-b border-gray-200 bg-white sticky top-16 z-40">
@@ -405,71 +479,139 @@ function MainApp() {
             {/* 서브 탭 컨텐츠 */}
             <div className="flex-1 mt-6">
               {adminSubTab === 'documents' ? (
-              /* 문서 관리 */
-              <div className="w-full">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                  {/* 파일 업로드 */}
-                  <div className="card">
-                  <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                    📁 파일 업로드
-                  </h2>
-                  <FileUpload
-                    onUploadSuccess={handleUploadSuccess}
-                    onUploadStart={handleUploadStart}
-                  />
-                </div>
-
-                {/* 문서 목록 */}
-                <div className="card">
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-semibold text-gray-900">
-                      📚 업로드된 문서
-                    </h2>
-                    <button
-                      onClick={loadDocuments}
-                      className="text-sm text-primary-600 hover:text-primary-700"
-                    >
-                      새로고침
-                    </button>
-                  </div>
-
-                  {documents.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500">
-                      <svg className="w-12 h-12 mx-auto mb-2 text-gray-300" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
-                      </svg>
-                      <p className="text-sm">업로드된 문서가 없습니다</p>
+                <div className="w-full">
+                  {/* 게시판 동기화 카드 */}
+                  <div className="bg-white rounded-lg shadow mb-6">
+                    <div className="px-6 py-4 border-b border-gray-200">
+                      <h2 className="text-lg font-semibold text-gray-900">🔄 사내규정 동기화</h2>
                     </div>
-                  ) : (
-                    <div className="space-y-3 max-h-96 overflow-y-auto">
-                      {documents.map((doc) => (
-                        <div key={doc.file_id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                          <div className="flex-1 min-w-0">
-                            <h3 className="text-sm font-medium text-gray-900 truncate">
-                              {doc.file_name}
-                            </h3>
-                            <p className="text-xs text-gray-500">
-                              {doc.chunk_count}개 청크 • {new Date(doc.upload_time).toLocaleDateString('ko-KR')}
+                    <div className="p-6">
+                    <div className="space-y-4">
+                      {/* 동기화 설정 정보 */}
+                      <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                        <div className="flex items-start">
+                          <svg className="h-5 w-5 text-purple-400 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd"/>
+                          </svg>
+                          <div className="ml-3 flex-1">
+                            <p className="text-sm text-purple-700 font-medium mb-1">동기화 대상</p>
+                            <p className="text-sm text-purple-600">
+                              공지사항 게시판 &gt; 제목: <strong>[복리후생] 직원 인사 복리후생 기준</strong>
+                            </p>
+                            <p className="text-xs text-purple-500 mt-1">
+                              💡 자동 동기화는 매일 새벽 2시에 실행됩니다.
                             </p>
                           </div>
-                          <button
-                            onClick={() => handleDeleteDocument(doc.file_id)}
-                            className="ml-2 text-red-500 hover:text-red-700 p-1"
-                            title="문서 삭제"
-                          >
-                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd"/>
-                            </svg>
-                          </button>
                         </div>
-                      ))}
                       </div>
-                    )}
+
+                      {/* 동기화 상태 */}
+                      {syncStatus && (
+                        <div className="bg-gray-50 rounded-lg p-4">
+                          <p className="text-xs text-gray-500 mb-1">동기화 상태</p>
+                          <p className="text-sm font-medium text-gray-900">
+                            {syncStatus.last_sync_status === 'success' ? '성공' : 
+                              syncStatus.last_sync_status === 'error' ? '오류' :
+                              syncStatus.last_sync_status === 'no_posts_found' ? '게시물 없음' :
+                              syncStatus.last_sync_status === 'no_attachments' ? '첨부파일 없음' : '알 수 없음'}
+                            {syncStatus.files_synced > 0 && ` (${syncStatus.files_synced}개 파일)`}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* 수동 동기화 버튼 */}
+                      <button
+                        onClick={syncBoardAttachments}
+                        disabled={isSyncing}
+                        className={`w-full py-3 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2 ${
+                          isSyncing
+                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                            : 'bg-purple-600 text-white hover:bg-purple-700'
+                        }`}
+                      >
+                        {isSyncing ? (
+                          <>
+                            <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span>동기화 진행 중...</span>
+                          </>
+                        ) : (
+                          <>
+                            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                            </svg>
+                            <span>수동 동기화 실행</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    {/* 파일 업로드 */}
+                    <div className="card">
+                      <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                        📁 파일 업로드
+                      </h2>
+                      <FileUpload
+                        onUploadSuccess={handleUploadSuccess}
+                        onUploadStart={handleUploadStart}
+                      />
+                    </div>
+
+                    {/* 문서 목록 */}
+                    <div className="card">
+                      <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-lg font-semibold text-gray-900">
+                          📚 업로드된 문서
+                        </h2>
+                        <button
+                          onClick={loadDocuments}
+                          className="text-sm text-primary-600 hover:text-primary-700"
+                        >
+                          새로고침
+                        </button>
+                      </div>
+
+                      {documents.length === 0 ? (
+                        <div className="text-center py-8 text-gray-500">
+                          <svg className="w-12 h-12 mx-auto mb-2 text-gray-300" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+                          </svg>
+                          <p className="text-sm">업로드된 문서가 없습니다</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-3 max-h-96 overflow-y-auto">
+                          {documents.map((doc) => (
+                            <div key={doc.file_id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                              <div className="flex-1 min-w-0">
+                                <h3 className="text-sm font-medium text-gray-900 truncate">
+                                  {doc.file_name}
+                                </h3>
+                                <p className="text-xs text-gray-500">
+                                  {doc.chunk_count}개 청크 • {new Date(doc.upload_time).toLocaleDateString('ko-KR')}
+                                </p>
+                              </div>
+                              <button
+                                onClick={() => handleDeleteDocument(doc.file_id)}
+                                className="ml-2 text-red-500 hover:text-red-700 p-1"
+                                title="문서 삭제"
+                              >
+                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd"/>
+                                </svg>
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
               ) : (
-                /* FAQ 관리 */
                 <div className="w-full">
                   <AdminPage />
                 </div>
@@ -477,7 +619,6 @@ function MainApp() {
             </div>
           </div>
         ) : activeTab === 'search' ? (
-          /* 문서 검색 탭 */
           <div>
             {/* 검색바 */}
             <div className="card">
@@ -519,7 +660,6 @@ function MainApp() {
             </div>
           </div>
         ) : (
-          /* RAG 채팅 탭 */
           <div className="card overflow-hidden">
             <div className="h-[calc(100vh-200px)] min-h-[500px]">
               <ChatInterface className="h-full" />

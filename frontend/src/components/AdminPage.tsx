@@ -12,13 +12,6 @@ interface FAQSetting {
   count: number;
 }
 
-interface BoardSyncStatus {
-  is_running: boolean;
-  last_sync_time: string | null;
-  last_sync_status: string | null;
-  files_synced: number;
-}
-
 const AdminPage: React.FC = () => {
   const [faqData, setFaqData] = useState<FAQSetting[]>([]);
   const [filteredData, setFilteredData] = useState<FAQSetting[]>([]);
@@ -27,14 +20,9 @@ const AdminPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [hasChanges, setHasChanges] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
-  
-  // 게시판 동기화 상태
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [syncStatus, setSyncStatus] = useState<BoardSyncStatus | null>(null);
 
   useEffect(() => {
     loadFAQSettings();
-    loadSyncStatus();
   }, []);
 
   useEffect(() => {
@@ -239,95 +227,6 @@ const AdminPage: React.FC = () => {
     }
   };
 
-  const loadSyncStatus = async () => {
-    try {
-      const response = await fetch('/api/dollkongbot/board/sync-status');
-      if (response.ok) {
-        const status = await response.json();
-        setSyncStatus(status);
-      }
-    } catch (error) {
-      console.error('동기화 상태 조회 실패:', error);
-    }
-  };
-
-  const syncBoardAttachments = async () => {
-    if (isSyncing) {
-      toast.warning('이미 동기화가 진행 중입니다.');
-      return;
-    }
-
-    try {
-      const token = localStorage.getItem('naverworks_token');
-      if (!token) {
-        toast.error('로그인이 필요합니다.');
-        return;
-      }
-
-      setIsSyncing(true);
-      toast.info('게시판 첨부파일 동기화를 시작합니다...');
-
-      // TODO: 환경 변수로 게시판 ID 관리 필요
-      const BOARD_ID = '6044785668'; // 실제 게시판 ID로 교체 필요
-      
-      const response = await fetch('/api/dollkongbot/board/sync-attachments', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          board_id: BOARD_ID,
-          title_keyword: '[복리후생] 직원 인사 복리후생 기준'
-        })
-      });
-
-      const result = await response.json();
-
-      if (response.ok && result.success) {
-        toast.success(result.message);
-        await loadSyncStatus();
-      } else {
-        throw new Error(result.detail || '동기화 실패');
-      }
-    } catch (error: any) {
-      toast.error(`동기화 실패: ${error.message}`);
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
-  const formatSyncTime = (time: string | null) => {
-    if (!time) return '없음';
-    try {
-      const date = new Date(time);
-      return date.toLocaleString('ko-KR', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-    } catch {
-      return time;
-    }
-  };
-
-  const getSyncStatusText = (status: string | null) => {
-    switch (status) {
-      case 'success':
-        return '성공';
-      case 'error':
-        return '오류';
-      case 'no_posts_found':
-        return '게시물 없음';
-      case 'no_attachments':
-        return '첨부파일 없음';
-      default:
-        return '알 수 없음';
-    }
-  };
-
   const visibleCount = faqData.filter(f => f.visible).length;
   const allSelected = filteredData.length > 0 && filteredData.every(faq => selectedItems.has(faq.keyword));
 
@@ -335,81 +234,6 @@ const AdminPage: React.FC = () => {
     <div>
       {/* 메인 컨텐츠 */}
       <div>
-        {/* 게시판 동기화 카드 */}
-        <div className="bg-white rounded-lg shadow mb-6">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">게시판 첨부파일 동기화</h2>
-          </div>
-          <div className="p-6">
-            <div className="space-y-4">
-              {/* 동기화 설정 정보 */}
-              <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-                <div className="flex items-start">
-                  <svg className="h-5 w-5 text-purple-400 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd"/>
-                  </svg>
-                  <div className="ml-3 flex-1">
-                    <p className="text-sm text-purple-700 font-medium mb-1">동기화 대상</p>
-                    <p className="text-sm text-purple-600">
-                      공지사항 게시판 &gt; 제목: <strong>[복리후생] 직원 인사 복리후생 기준</strong>
-                    </p>
-                    <p className="text-xs text-purple-500 mt-1">
-                      💡 자동 동기화는 매일 새벽 2시에 실행됩니다.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* 동기화 상태 */}
-              {syncStatus && (
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <p className="text-xs text-gray-500 mb-1">마지막 동기화</p>
-                    <p className="text-sm font-medium text-gray-900">
-                      {formatSyncTime(syncStatus.last_sync_time)}
-                    </p>
-                  </div>
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <p className="text-xs text-gray-500 mb-1">동기화 상태</p>
-                    <p className="text-sm font-medium text-gray-900">
-                      {syncStatus.last_sync_status ? getSyncStatusText(syncStatus.last_sync_status) : '없음'}
-                      {syncStatus.files_synced > 0 && ` (${syncStatus.files_synced}개 파일)`}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* 수동 동기화 버튼 */}
-              <button
-                onClick={syncBoardAttachments}
-                disabled={isSyncing}
-                className={`w-full py-3 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2 ${
-                  isSyncing
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : 'bg-purple-600 text-white hover:bg-purple-700'
-                }`}
-              >
-                {isSyncing ? (
-                  <>
-                    <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    <span>동기화 진행 중...</span>
-                  </>
-                ) : (
-                  <>
-                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-                    </svg>
-                    <span>수동 동기화 실행</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-
         {/* 안내 메시지 */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
           <div className="flex">
