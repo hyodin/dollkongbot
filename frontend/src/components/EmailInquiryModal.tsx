@@ -205,31 +205,9 @@ const EmailInquiryModal: React.FC<EmailInquiryModalProps> = ({
 ================================`;
   };
 
-  // 대화 기록 생성 (실제 발송용)
-  const generateChatHistory = (): string => {
-    let historyText = '';
-    
-    // 최근 대화 히스토리 추가 (최근 5개 메시지)
-    if (chatHistory && chatHistory.length > 0) {
-      const recentHistory = chatHistory.slice(-5);
-      recentHistory.forEach((msg, index) => {
-        const role = msg.role === 'user' ? '사용자' : '챗봇';
-        const content = msg.content;
-        historyText += `\n${index + 1}️⃣ [${role}] ${content}`;
-      });
-    } else {
-      // 대화 히스토리가 없는 경우 현재 질문과 응답만 표시
-      historyText += `\n1️⃣ [사용자] ${userQuestion}`;
-      historyText += `\n2️⃣ [챗봇] ${chatResponse}`;
-    }
-    
-    return historyText;
-  };
-
   // 전체 메일 본문 생성 (실제 발송용)
   const generateFullEmailContent = (userContent: string): string => {
     const header = generateEmailHeader();
-    const historyText = generateChatHistory();
     const footer = generateEmailFooter();
     
     return `${header}
