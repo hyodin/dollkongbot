@@ -17,12 +17,15 @@ interface ChatMessage {
     total: number;
     search: number;
     generation: number;
+    quality_evaluation?: number;
   };
   token_usage?: {
     prompt_tokens: number;
     completion_tokens: number;
     total_tokens: number;
   };
+  is_low_quality?: boolean;  // 백엔드에서 평가한 답변 품질
+  quality_score?: number;    // 백엔드에서 평가한 품질 점수
 }
 
 interface ContextDocument {
@@ -138,25 +141,15 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
     setMessages(prev => [...prev, assistantMessage]);
   };
 
-  // 답변 품질 판단 함수
-  const isLowQualityResponse = (response: string): boolean => {
-    const lowQualityIndicators = [
-      '죄송합니다',
-      '알 수 없습니다',
-      '찾을 수 없습니다',
-      '답변할 수 없습니다',
-      '정보가 없습니다',
-      '확인할 수 없습니다',
-      '도움을 드릴 수 없습니다',
-      '답변을 찾을 수 없습니다',
-      '해당 정보를 찾을 수 없습니다',
-      '문서에서 관련 정보를 찾을 수 없습니다',
-      '관련 문서를 찾을 수 없습니다',
-      '적절한 답변을 제공할 수 없습니다'
-    ];
-    
-    const responseLower = response.toLowerCase();
-    return lowQualityIndicators.some(indicator => responseLower.includes(indicator.toLowerCase()));
+  // 답변 품질 판단 함수 (백엔드 응답 기반)
+  // 하드코딩된 키워드 대신 백엔드에서 평가한 is_low_quality 필드 사용
+  const isLowQualityResponse = (message: ChatMessage): boolean => {
+    // 백엔드에서 평가한 품질 정보가 있으면 사용
+    if (message.is_low_quality !== undefined) {
+      return message.is_low_quality;
+    }
+    // fallback: 백엔드 응답에 품질 정보가 없는 경우 (하위 호환성)
+    return false;
   };
 
   // 메시지 목록 끝으로 스크롤
@@ -390,13 +383,15 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
         timestamp: new Date(),
         context_documents: response.context_documents,
         processing_time: response.processing_time,
-        token_usage: response.token_usage
+        token_usage: response.token_usage,
+        is_low_quality: response.is_low_quality,  // 백엔드에서 평가한 품질 정보
+        quality_score: response.quality_score      // 백엔드에서 평가한 품질 점수
       };
 
       setMessages(prev => [...prev, assistantMessage]);
       
       // 답변 품질 확인 및 메일 문의 버튼 표시 여부 결정
-      if (isLowQualityResponse(response.answer)) {
+      if (response.is_low_quality) {
         setLastUserQuestion(userMessage.content);
         setLastChatResponse(response.answer);
       }
@@ -693,7 +688,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
                 )}
                 
                 {/* 메일 문의 버튼 (assistant 메시지이고 답변 품질이 낮을 때만 표시) */}
-                {message.role === 'assistant' && isLowQualityResponse(message.content) && (
+                {message.role === 'assistant' && isLowQualityResponse(message) && (
                   <div className="mt-3 pt-3 border-t border-gray-200">
                     <button
                       onClick={() => {

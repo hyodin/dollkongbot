@@ -96,12 +96,15 @@ export interface ChatResponse {
     total: number;
     search: number;
     generation: number;
+    quality_evaluation?: number;
   };
   token_usage: {
     prompt_tokens: number;
     completion_tokens: number;
     total_tokens: number;
   };
+  is_low_quality: boolean;
+  quality_score: number;
 }
 
 // FAQ 관련 인터페이스
