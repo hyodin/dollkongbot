@@ -38,17 +38,18 @@ const EmailInquiryModal: React.FC<EmailInquiryModalProps> = ({
   const [subject, setSubject] = useState('');
   const [content, setContent] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [emailHealth, setEmailHealth] = useState<any>(null);
+  // const [emailHealth, setEmailHealth] = useState<any>(null);
 
   // 컴포넌트가 열릴 때 이메일 서비스 상태 확인
   useEffect(() => {
     if (isOpen) {
-      checkEmailHealth();
+      // checkEmailHealth(); // 비활성화됨
       generateEmailTemplate();
     }
   }, [isOpen]);
 
-  // 이메일 서비스 상태 확인
+  // 이메일 서비스 상태 확인 - 비활성화됨
+  /*
   const checkEmailHealth = async () => {
     try {
       const health = await apiClient.checkEmailHealth();
@@ -62,6 +63,7 @@ const EmailInquiryModal: React.FC<EmailInquiryModalProps> = ({
       // toast.error는 제거 (잠자는 돌콩이 알림창이 대신 표시됨)
     }
   };
+  */
 
   // 네이버웍스 구성원 검색
   const searchUsers = useCallback(async (query: string) => {
@@ -245,7 +247,8 @@ const EmailInquiryModal: React.FC<EmailInquiryModalProps> = ({
           </button>
         </div>
 
-        {/* 이메일 서비스 상태 */}
+        {/* 이메일 서비스 상태 - 비활성화됨 */}
+        {/* 
         {emailHealth && (
           <div className={`px-6 py-3 text-sm ${
             emailHealth.status === 'healthy' 
@@ -255,6 +258,7 @@ const EmailInquiryModal: React.FC<EmailInquiryModalProps> = ({
             {emailHealth.status === 'healthy' ? '✅' : '⚠️'} {emailHealth.message}
           </div>
         )}
+        */}
 
         {/* 폼 내용 */}
         <div className="p-6 space-y-4">
