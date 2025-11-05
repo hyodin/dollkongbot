@@ -47,10 +47,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [useContext, setUseContext] = useState(true);
-  const [showSettings, setShowSettings] = useState(false);
-  const [maxResults, setMaxResults] = useState(5);
-  const [scoreThreshold, setScoreThreshold] = useState(0.1);
+  // 설정 값들 (고정값)
+  const useContext = true;
+  const maxResults = 5;
+  const scoreThreshold = 0.1;
   
   // FAQ 관련 상태 (백엔드가 객체 배열 또는 문자열 배열 반환 가능)
   const [faqLevel1Keywords, setFaqLevel1Keywords] = useState<(string | FAQKeyword)[]>([]);
@@ -450,6 +450,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
           </div>
           
           <div className="flex items-center space-x-2">
+            {/* 설정 버튼 비활성화됨
             <button
               onClick={() => setShowSettings(!showSettings)}
               className="p-2 text-white hover:bg-white hover:bg-opacity-20 rounded-full transition-colors"
@@ -457,6 +458,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
             >
               ⚙️
             </button>
+            */}
             <button
               onClick={clearChat}
               className="p-2 text-white hover:bg-white hover:bg-opacity-20 rounded-full transition-colors"
@@ -468,7 +470,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
         </div>
       </div>
 
-      {/* 돌콩이 설정 패널 */}
+      {/* 돌콩이 설정 패널 - 비활성화됨 */}
+      {/* 
       {showSettings && (
         <div className="p-6 bg-gradient-to-r from-orange-50 to-blue-50 border-b border-orange-100">
           <div className="dollkong-fixed mx-auto px-6">
@@ -521,6 +524,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
           </div>
         </div>
       )}
+      */}
 
       
 
