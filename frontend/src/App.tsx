@@ -367,7 +367,7 @@ function MainApp() {
                       : 'bg-white text-gray-700 hover:bg-gray-50'
                   }`}
                 >
-                  <img src="/assets/dollkong.png" alt="돌콩이" className="w-5 h-5 object-contain" />
+                  <img src="./assets/dollkong.png" alt="돌콩이" className="w-5 h-5 object-contain" />
                   <span>돌콩이</span>
                 </button>
                 
