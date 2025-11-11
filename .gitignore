@@ -56,6 +56,9 @@ build/
 .env.test.local
 .env.production.local
 
+# OAuth tokens (sensitive)
+batch_refresh_token.txt
+
 # OS generated files
 .DS_Store
 .DS_Store?

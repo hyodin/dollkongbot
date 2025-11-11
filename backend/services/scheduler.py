@@ -6,6 +6,8 @@ APScheduler를 사용한 게시판 첨부파일 자동 동기화
 
 import logging
 import os
+import requests
+from pathlib import Path
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from datetime import datetime
@@ -14,6 +16,11 @@ from services.naverworks_board_service import get_board_service
 from routers.board import _sync_attachments
 
 logger = logging.getLogger(__name__)
+
+# 네이버웍스 OAuth 설정
+NAVERWORKS_CLIENT_ID = os.getenv("NAVERWORKS_CLIENT_ID", "KG7nswiEUqq3499jB5Ih")
+NAVERWORKS_CLIENT_SECRET = os.getenv("NAVERWORKS_CLIENT_SECRET", "t8_Nud9m8z")
+NAVERWORKS_TOKEN_URL = os.getenv("NAVERWORKS_TOKEN_URL", "https://auth.worksmobile.com/oauth2/v2.0/token")
 
 
 class BoardSyncScheduler:
@@ -31,10 +38,80 @@ class BoardSyncScheduler:
         # 관리자 토큰 (실제로는 서비스 계정 토큰 사용 권장)
         self.service_access_token = os.getenv("BOARD_SYNC_ACCESS_TOKEN", "")
         
+        # batch_refresh_token.txt 파일 경로
+        self.refresh_token_path = Path(__file__).parent.parent.parent / "batch_refresh_token.txt"
+        self.refresh_token = None
+        
+        # batch_refresh_token.txt 파일에서 refresh token 로드
+        self._load_refresh_token()
+        
         logger.info("BoardSyncScheduler 초기화")
         logger.info(f"  - 게시판 ID: {self.board_id}")
         logger.info(f"  - 제목 키워드: {self.title_keyword}")
         logger.info(f"  - 스케줄: {self.cron_schedule}")
+        logger.info(f"  - Refresh Token: {'있음' if self.refresh_token else '없음'}")
+    
+    def _load_refresh_token(self):
+        """batch_refresh_token.txt 파일에서 refresh token 로드"""
+        try:
+            if self.refresh_token_path.exists():
+                self.refresh_token = self.refresh_token_path.read_text().strip()
+                if self.refresh_token:
+                    logger.info(f"✅ batch_refresh_token.txt에서 토큰 로드 성공")
+                    logger.info(f"   파일 경로: {self.refresh_token_path}")
+                else:
+                    logger.warning("⚠️ batch_refresh_token.txt 파일이 비어있습니다")
+            else:
+                logger.warning(f"⚠️ batch_refresh_token.txt 파일을 찾을 수 없습니다: {self.refresh_token_path}")
+        except Exception as e:
+            logger.error(f"❌ batch_refresh_token.txt 로드 실패: {str(e)}")
+            self.refresh_token = None
+    
+    def _refresh_access_token(self) -> str:
+        """refresh token을 사용하여 새로운 access token 발급"""
+        try:
+            if not self.refresh_token:
+                logger.error("refresh token이 없습니다")
+                return ""
+            
+            headers = {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Accept': 'application/json'
+            }
+            
+            payload = {
+                "grant_type": "refresh_token",
+                "refresh_token": self.refresh_token,
+                "client_id": NAVERWORKS_CLIENT_ID,
+                "client_secret": NAVERWORKS_CLIENT_SECRET,
+            }
+            
+            logger.info("네이버웍스 토큰 갱신 시도...")
+            response = requests.post(NAVERWORKS_TOKEN_URL, data=payload, headers=headers, timeout=10)
+            
+            if response.status_code == 200:
+                token_info = response.json()
+                new_access_token = token_info.get("access_token")
+                new_refresh_token = token_info.get("refresh_token")
+                
+                logger.info("✅ 토큰 갱신 성공")
+                
+                # 새로운 refresh token이 있으면 파일 업데이트
+                if new_refresh_token and new_refresh_token != self.refresh_token:
+                    self.refresh_token = new_refresh_token
+                    try:
+                        self.refresh_token_path.write_text(new_refresh_token)
+                        logger.info("✅ batch_refresh_token.txt 파일 업데이트 완료")
+                    except Exception as e:
+                        logger.error(f"❌ batch_refresh_token.txt 파일 저장 실패: {str(e)}")
+                
+                return new_access_token
+            else:
+                logger.error(f"❌ 토큰 갱신 실패: {response.status_code} - {response.text}")
+                return ""
+        except Exception as e:
+            logger.error(f"❌ 토큰 갱신 중 오류: {str(e)}")
+            return ""
     
     async def sync_job(self):
         """스케줄링된 동기화 작업"""
@@ -44,19 +121,34 @@ class BoardSyncScheduler:
             logger.info(f"실행 시각: {datetime.now().isoformat()}")
             logger.info("=" * 70)
             
-            if not self.service_access_token:
-                logger.error("서비스 액세스 토큰이 설정되지 않았습니다")
-                logger.error("환경 변수 BOARD_SYNC_ACCESS_TOKEN을 설정해주세요")
+            # 게시판 ID 체크
+            if not self.board_id:
+                logger.error("❌ 게시판 ID가 설정되지 않았습니다")
+                logger.error("   환경 변수 BOARD_SYNC_BOARD_ID를 설정해주세요")
                 return
             
-            if not self.board_id:
-                logger.error("게시판 ID가 설정되지 않았습니다")
-                logger.error("환경 변수 BOARD_SYNC_BOARD_ID를 설정해주세요")
-                return
+            # Access Token 확인 및 갱신
+            access_token = self.service_access_token
+            
+            # 환경 변수에 토큰이 없으면 refresh token으로 갱신 시도
+            if not access_token:
+                logger.info("💡 BOARD_SYNC_ACCESS_TOKEN이 없습니다. refresh token으로 갱신 시도...")
+                
+                if self.refresh_token:
+                    access_token = self._refresh_access_token()
+                    
+                    if not access_token:
+                        logger.error("❌ 토큰 갱신 실패. 동기화를 건너뜁니다.")
+                        return
+                else:
+                    logger.error("❌ refresh token도 없습니다. 동기화를 건너뜁니다.")
+                    logger.error("   batch_refresh_token.txt 파일을 확인해주세요.")
+                    return
             
             # 동기화 실행
+            logger.info(f"🚀 동기화 실행 시작 (게시판 ID: {self.board_id})")
             result = await _sync_attachments(
-                self.service_access_token,
+                access_token,
                 self.board_id,
                 self.title_keyword
             )
@@ -66,19 +158,21 @@ class BoardSyncScheduler:
             logger.info(f"   - 파일 처리: {result.files_processed}/{result.files_downloaded}개")
             
         except Exception as e:
-            logger.error(f"스케줄링된 동기화 실패: {str(e)}")
+            logger.error(f"❌ 스케줄링된 동기화 실패: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
     
     def start(self):
         """스케줄러 시작"""
         try:
-            if not self.board_id or not self.service_access_token:
-                logger.warning("게시판 자동 동기화가 비활성화되어 있습니다")
-                logger.warning("활성화하려면 다음 환경 변수를 설정하세요:")
-                logger.warning("  - BOARD_SYNC_BOARD_ID: 게시판 ID")
-                logger.warning("  - BOARD_SYNC_ACCESS_TOKEN: 서비스 계정 액세스 토큰")
-                logger.warning("  - BOARD_SYNC_TITLE_KEYWORD: 제목 키워드 (선택, 기본값: [복리후생] 직원 인사 복리후생 기준)")
-                logger.warning("  - BOARD_SYNC_CRON: Cron 스케줄 (선택, 기본값: 0 2 * * * - 매일 새벽 2시)")
-                return
+            # 토큰이 없어도 스케줄러는 시작 (실행 시에만 체크)
+            if not self.service_access_token:
+                logger.warning("⚠️ BOARD_SYNC_ACCESS_TOKEN이 설정되지 않았습니다")
+                logger.warning("   동기화 작업 실행 시 토큰이 필요합니다")
+            
+            if not self.board_id:
+                logger.warning("⚠️ BOARD_SYNC_BOARD_ID가 설정되지 않았습니다")
+                logger.warning("   동기화 작업 실행 시 게시판 ID가 필요합니다")
             
             # Cron 트리거 생성
             # 형식: "분 시 일 월 요일"
@@ -143,12 +237,24 @@ class BoardSyncScheduler:
                 "message": "스케줄 작업이 등록되지 않았습니다"
             }
         
+        # 토큰 및 refresh token 상태 확인
+        has_token = bool(self.service_access_token)
+        has_refresh_token = bool(self.refresh_token)
+        has_board_id = bool(self.board_id)
+        
+        # access token이 없어도 refresh token이 있으면 준비 완료로 간주
+        ready = has_board_id and (has_token or has_refresh_token)
+        
         return {
             "enabled": True,
             "schedule": self.cron_schedule,
             "next_run_time": job.next_run_time.isoformat() if job.next_run_time else None,
             "board_id": self.board_id,
-            "title_keyword": self.title_keyword
+            "title_keyword": self.title_keyword,
+            "has_token": has_token,
+            "has_refresh_token": has_refresh_token,
+            "has_board_id": has_board_id,
+            "ready": ready
         }
 
 

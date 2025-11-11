@@ -214,9 +214,25 @@ async def lifespan(app: FastAPI):
             scheduler_status = scheduler.get_status()
             
             if scheduler_status.get("enabled"):
-                logger.info("✓ 게시판 자동 동기화: 활성화")
+                logger.info("✓ 게시판 자동 동기화 스케줄러: 활성화")
                 logger.info(f"✓ 스케줄: {scheduler_status.get('schedule')}")
                 logger.info(f"✓ 다음 실행: {scheduler_status.get('next_run_time')}")
+                
+                # 토큰/게시판ID 체크
+                if scheduler_status.get("ready"):
+                    logger.info("✓ 동기화 준비 완료")
+                    if scheduler_status.get("has_token"):
+                        logger.info("  - Access Token: 환경변수에서 로드됨")
+                    elif scheduler_status.get("has_refresh_token"):
+                        logger.info("  - Access Token: batch_refresh_token.txt에서 자동 갱신됨")
+                    if scheduler_status.get("has_board_id"):
+                        logger.info(f"  - 게시판 ID: {scheduler_status.get('board_id')}")
+                else:
+                    logger.warning("⚠️ 동기화 준비 미완료")
+                    if not scheduler_status.get("has_token") and not scheduler_status.get("has_refresh_token"):
+                        logger.warning("  - BOARD_SYNC_ACCESS_TOKEN 또는 batch_refresh_token.txt가 필요합니다")
+                    if not scheduler_status.get("has_board_id"):
+                        logger.warning("  - BOARD_SYNC_BOARD_ID가 필요합니다")
             else:
                 logger.info("⚠ 게시판 자동 동기화: 비활성화")
         except Exception as e:
