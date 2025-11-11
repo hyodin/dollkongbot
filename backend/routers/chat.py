@@ -97,27 +97,126 @@ async def chat_with_documents(request: ChatRequest):
                 detail="LLM 서비스 상태 확인 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
             )
         
-        # 1-1. 질문 의도 분류 (LLM 먼저 태우기)
+        # 1-1. 질문 의도 분류 (업무/일상/인사 3가지 분류)
         logger.info("=" * 70)
-        logger.info("🤖 질문 의도 분류 시작")
+        logger.info("🤖 질문 의도 분류 시작 (업무/일상/인사)")
         logger.info("=" * 70)
         intent_classification = await llm_service.classify_query_intent(request.question)
-        needs_document_search = intent_classification.get("needs_document_search", True)
-        intent_type = intent_classification.get("intent_type", "unknown")
+        intent_type = intent_classification.get("intent_type", "work")
         confidence = intent_classification.get("confidence", 0.0)
+        reasoning = intent_classification.get("reasoning", "")
         
         logger.info(f"📊 의도 분류 결과:")
-        logger.info(f"   - 문서 검색 필요: {needs_document_search}")
         logger.info(f"   - 의도 유형: {intent_type}")
-        logger.info(f"   - 신뢰도: {confidence}")
-        if intent_classification.get("reasoning"):
-            logger.info(f"   - 이유: {intent_classification.get('reasoning')}")
+        logger.info(f"   - 신뢰도: {confidence:.2f}")
+        if reasoning:
+            logger.info(f"   - 이유: {reasoning}")
+        
+        # === 인사말 처리 ===
+        if intent_type == "greeting" and confidence >= 0.5:
+            logger.info("=" * 70)
+            logger.info("👋 인사말로 분류됨 - 친근한 인사 응답 생성")
+            logger.info("=" * 70)
+            
+            try:
+                greeting_response = await llm_service.generate_greeting_response(request.question)
+                total_time = time.time() - start_time
+                
+                response = ChatResponse(
+                    answer=greeting_response["answer"],
+                    question=request.question,
+                    context_used=False,
+                    context_documents=[],
+                    model_info={
+                        "llm_model": greeting_response["model"],
+                        "embedding_model": "jhgan/ko-sbert-nli",
+                        "vector_db": "qdrant"
+                    },
+                    processing_time={
+                        "total": round(total_time, 3),
+                        "search": 0.0,
+                        "generation": round(total_time - start_time, 3),
+                        "quality_evaluation": 0.0
+                    },
+                    token_usage={
+                        "prompt_tokens": greeting_response["tokens_used"].get("input", 0),
+                        "completion_tokens": greeting_response["tokens_used"].get("output", 0),
+                        "total_tokens": greeting_response["tokens_used"].get("total", 0)
+                    },
+                    is_low_quality=False,
+                    quality_score=1.0
+                )
+                
+                logger.info(f"✅ 인사말 응답 완료 - 총 처리 시간: {total_time:.2f}초")
+                return response
+                
+            except Exception as greeting_error:
+                logger.error(f"❌ 인사말 응답 생성 실패: {str(greeting_error)}")
+                # fallback 인사말
+                total_time = time.time() - start_time
+                response = ChatResponse(
+                    answer="안녕하세요! 돌콩이입니다 :) 업무 관련해서 궁금하신 점이 있으시면 언제든 물어봐 주세요!",
+                    question=request.question,
+                    context_used=False,
+                    context_documents=[],
+                    model_info={
+                        "llm_model": llm_service.model_name,
+                        "embedding_model": "jhgan/ko-sbert-nli",
+                        "vector_db": "qdrant"
+                    },
+                    processing_time={
+                        "total": round(total_time, 3),
+                        "search": 0.0,
+                        "generation": 0.0,
+                        "quality_evaluation": 0.0
+                    },
+                    token_usage={"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+                    is_low_quality=False,
+                    quality_score=1.0
+                )
+                return response
+        
+        # === 일상 대화 처리 ===
+        if intent_type == "casual" and confidence >= 0.5:
+            logger.info("=" * 70)
+            logger.info("💬 일상 대화로 분류됨 - 안내 메시지 반환")
+            logger.info("=" * 70)
+            
+            total_time = time.time() - start_time
+            response = ChatResponse(
+                answer="업무 질문만 가능합니다.",
+                question=request.question,
+                context_used=False,
+                context_documents=[],
+                model_info={
+                    "llm_model": llm_service.model_name,
+                    "embedding_model": "jhgan/ko-sbert-nli",
+                    "vector_db": "qdrant"
+                },
+                processing_time={
+                    "total": round(total_time, 3),
+                    "search": 0.0,
+                    "generation": 0.0,
+                    "quality_evaluation": 0.0
+                },
+                token_usage={"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+                is_low_quality=False,
+                quality_score=1.0
+            )
+            
+            logger.info(f"✅ 일상 대화 안내 메시지 반환 완료 - 총 처리 시간: {total_time:.2f}초")
+            return response
+        
+        # === 업무 질문 처리 (기존 RAG 플로우) ===
+        logger.info("=" * 70)
+        logger.info("💼 업무 질문으로 분류됨 - RAG 플로우 시작")
+        logger.info("=" * 70)
         
         search_time_start = time.time()
         context_documents = []
         
-        # 2. 문서 검색 (컨텍스트 사용 시 + 문서 검색 필요할 때만)
-        if request.use_context and needs_document_search:
+        # 2. 문서 검색 (업무 질문일 때만)
+        if request.use_context:
             try:
                 logger.info("=" * 70)
                 logger.info(f"🔍 RAG 검색 시작")
@@ -208,12 +307,6 @@ async def chat_with_documents(request: ChatRequest):
             except Exception as e:
                 logger.error(f"❌ 문서 검색 실패: {str(e)}", exc_info=True)
                 logger.error(f"검색 파라미터: query='{request.question}', limit={request.max_results}, threshold={request.score_threshold}")
-        elif request.use_context and not needs_document_search:
-            # 일반 대화로 분류된 경우 문서 검색 건너뛰기
-            logger.info("━" * 60)
-            logger.info(f"💬 일반 대화로 분류됨 - 문서 검색 건너뛰기")
-            logger.info(f"   의도: {intent_type}")
-            logger.info("━" * 60)
         
         search_time = time.time() - search_time_start
         

@@ -210,16 +210,16 @@ class GeminiLLMService:
 
     async def classify_query_intent(self, question: str) -> Dict[str, Any]:
         """
-        질문 의도 분류 (일반 대화 vs 문서 검색 필요)
+        질문 의도를 3가지로 분류: 업무(work), 일상(casual), 인사(greeting)
         
         Args:
             question: 사용자 질문
             
         Returns:
             {
-                "needs_document_search": bool,  # 문서 검색이 필요한지
-                "intent_type": str,  # "greeting", "general_chat", "document_query", "unknown"
-                "confidence": float  # 분류 신뢰도 (0.0-1.0)
+                "intent_type": str,  # "work", "casual", "greeting"
+                "confidence": float,  # 분류 신뢰도 (0.0-1.0)
+                "reasoning": str  # 분류 이유
             }
         """
         try:
@@ -228,19 +228,25 @@ class GeminiLLMService:
                 logger.warning("Gemini 모델이 초기화되지 않음. 재구성 중...")
                 self._configure_gemini()
             
-            # 의도 분류 프롬프트
-            classification_prompt = f"""다음 사용자 질문을 분석하여, 이 질문이 회사 규정 문서 검색이 필요한지, 아니면 일반적인 인사나 대화인지 분류해주세요.
+            # 의도 분류 프롬프트 (3가지: 업무, 일상, 인사)
+            classification_prompt = f"""다음 사용자 질문을 정확히 3가지 유형으로 분류해주세요.
 
-질문: {question}
+사용자 질문: {question}
 
-분류 기준:
-1. "일반 대화" - 인사, 감사 인사, 단순 인사말, 감정 표현 등 (예: "안녕", "안녕하세요", "고마워요", "좋아요")
-2. "문서 검색 필요" - 회사 규정, 정책, 절차, 정보에 대한 구체적인 질문 (예: "연차 휴가는 어떻게 되나요?", "출장 신청 절차가 뭔가요?")
+분류 유형:
+1. "work" (업무) - 회사 규정, 사내 정책, 업무 절차, 복리후생, 인사 규정 등 업무와 관련된 질문
+   예시: "연차 휴가는 몇 일인가요?", "출장비 신청 방법은?", "육아휴직 기간은?", "복지 포인트 사용법은?"
+   
+2. "casual" (일상) - 업무와 무관한 일상적인 질문, 개인적인 대화, 잡담
+   예시: "오늘 날씨 어때?", "맛집 추천해줘", "파이썬 배우는 법 알려줘", "영화 추천해줘", "주식 투자 조언"
+   
+3. "greeting" (인사) - 인사말, 감사 인사, 간단한 응답
+   예시: "안녕", "안녕하세요", "고마워요", "감사합니다", "좋아요", "네", "응", "하이"
 
 JSON 형식으로만 응답해주세요:
 {{
-    "needs_document_search": true 또는 false,
-    "intent_type": "greeting" 또는 "general_chat" 또는 "document_query",
+    "intent_type": "work" 또는 "casual" 또는 "greeting",
+    "confidence": 0.0부터 1.0 사이의 숫자,
     "reasoning": "분류 이유 (간단히)"
 }}
 
@@ -250,7 +256,7 @@ JSON 형식으로만 응답해주세요:
             
             # Gemini API 호출
             generation_config = genai.types.GenerationConfig(
-                max_output_tokens=150,  # 분류는 짧은 응답으로 충분
+                max_output_tokens=150,
                 temperature=0.1,  # 낮은 온도로 일관된 분류
                 top_p=0.8,
                 top_k=40
@@ -276,7 +282,7 @@ JSON 형식으로만 응답해주세요:
             # 응답 파싱
             if not response or not hasattr(response, 'text'):
                 logger.warning("의도 분류 실패: 유효하지 않은 응답")
-                return {"needs_document_search": True, "intent_type": "unknown", "confidence": 0.0}
+                return {"intent_type": "work", "confidence": 0.0, "reasoning": "판단 실패"}
             
             response_text = response.text.strip()
             
@@ -284,44 +290,155 @@ JSON 형식으로만 응답해주세요:
             import json
             import re
             
-            # JSON 부분만 추출 (코드 블록 제거)
-            json_match = re.search(r'\{[^{}]*"needs_document_search"[^{}]*\}', response_text, re.DOTALL)
+            # JSON 부분만 추출
+            json_match = re.search(r'\{[^{}]*"intent_type"[^{}]*\}', response_text, re.DOTALL)
             if json_match:
                 json_str = json_match.group(0)
             else:
-                # JSON이 없으면 전체 텍스트에서 추출 시도
                 json_str = response_text
             
             try:
                 result = json.loads(json_str)
-                needs_search = result.get("needs_document_search", True)
-                intent_type = result.get("intent_type", "unknown")
+                intent_type = result.get("intent_type", "work")
+                confidence = result.get("confidence", 0.5)
+                reasoning = result.get("reasoning", "")
                 
-                logger.info(f"✅ 의도 분류 완료: needs_search={needs_search}, intent={intent_type}")
+                logger.info(f"✅ 의도 분류 완료: type={intent_type}, confidence={confidence:.2f}")
+                if reasoning:
+                    logger.info(f"   이유: {reasoning}")
                 
                 return {
-                    "needs_document_search": needs_search,
                     "intent_type": intent_type,
-                    "confidence": 0.8,  # 기본 신뢰도
-                    "reasoning": result.get("reasoning", "")
+                    "confidence": float(confidence),
+                    "reasoning": str(reasoning)
                 }
             except json.JSONDecodeError:
                 logger.warning(f"의도 분류 JSON 파싱 실패: {response_text}")
-                # 파싱 실패 시 키워드 기반 fallback
-                question_lower = question.lower()
-                greeting_keywords = ["안녕", "안녕하세요", "고마워", "감사", "좋아", "네", "응"]
-                if any(keyword in question_lower for keyword in greeting_keywords):
-                    return {"needs_document_search": False, "intent_type": "greeting", "confidence": 0.5}
-                else:
-                    return {"needs_document_search": True, "intent_type": "unknown", "confidence": 0.3}
+                # JSON 파싱 실패 시 응답 텍스트에서 의도 추출 시도
+                response_lower = response_text.lower()
+                
+                # 응답에서 의도 키워드 찾기
+                if "greeting" in response_lower or "인사" in response_lower:
+                    logger.info("→ 응답에서 'greeting' 키워드 발견")
+                    return {"intent_type": "greeting", "confidence": 0.5, "reasoning": "응답 텍스트 분석"}
+                elif "casual" in response_lower or "일상" in response_lower:
+                    logger.info("→ 응답에서 'casual' 키워드 발견")
+                    return {"intent_type": "casual", "confidence": 0.5, "reasoning": "응답 텍스트 분석"}
+                elif "work" in response_lower or "업무" in response_lower:
+                    logger.info("→ 응답에서 'work' 키워드 발견")
+                    return {"intent_type": "work", "confidence": 0.5, "reasoning": "응답 텍스트 분석"}
+                
+                # 파싱 완전 실패 시 안전하게 업무로 처리
+                logger.warning("⚠ JSON 파싱 및 텍스트 분석 실패 - 기본값(work)으로 처리")
+                return {"intent_type": "work", "confidence": 0.2, "reasoning": "파싱 실패 (기본값: 업무)"}
             
         except asyncio.TimeoutError:
-            logger.warning("의도 분류 타임아웃 - 기본값으로 문서 검색 필요로 처리")
-            return {"needs_document_search": True, "intent_type": "unknown", "confidence": 0.0}
+            logger.warning("의도 분류 타임아웃 - 기본값(work)으로 처리")
+            return {"intent_type": "work", "confidence": 0.0, "reasoning": "타임아웃"}
         except Exception as e:
             logger.error(f"의도 분류 중 오류: {e}")
-            # 오류 발생 시 안전하게 문서 검색 필요로 처리
-            return {"needs_document_search": True, "intent_type": "unknown", "confidence": 0.0}
+            return {"intent_type": "work", "confidence": 0.0, "reasoning": f"오류: {str(e)}"}
+
+    async def generate_greeting_response(self, question: str) -> Dict[str, Any]:
+        """
+        인사말에 대한 친근한 응답 생성
+        
+        Args:
+            question: 사용자 인사말
+            
+        Returns:
+            응답 딕셔너리 (answer, tokens_used 등)
+        """
+        try:
+            # 모델 상태 확인 및 재구성 (필요시)
+            if not hasattr(self, 'model') or self.model is None:
+                logger.warning("Gemini 모델이 초기화되지 않음. 재구성 중...")
+                self._configure_gemini()
+            
+            # 친근한 인사 프롬프트
+            greeting_prompt = f"""당신은 친근하고 도움이 되는 회사 업무 도우미 챗봇 "돌콩이"입니다.
+사용자의 인사말에 친근하고 따뜻하게 응답해주세요.
+
+사용자 인사: {question}
+
+응답 지침:
+- 2-3문장으로 간단하고 친근하게 답변하세요
+- 돌콩이라는 이름을 활용하세요
+- 업무 관련 질문이 있으면 도와드릴 수 있다는 것을 자연스럽게 언급하세요
+- 이모티콘은 사용하지 마세요 (웃는 표정 :) 정도는 괜찮습니다)
+
+응답:"""
+            
+            logger.info(f"인사말 응답 생성 시작: {question[:30]}...")
+            
+            # Gemini API 호출
+            generation_config = genai.types.GenerationConfig(
+                max_output_tokens=150,
+                temperature=0.7,  # 약간 높은 온도로 자연스러운 응답
+                top_p=0.9,
+                top_k=40
+            )
+            
+            safety_settings = [
+                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
+            ]
+            
+            response = await asyncio.wait_for(
+                asyncio.to_thread(
+                    self.model.generate_content,
+                    greeting_prompt,
+                    generation_config=generation_config,
+                    safety_settings=safety_settings
+                ),
+                timeout=10
+            )
+            
+            # 응답 검증
+            if not response or not hasattr(response, 'text'):
+                # fallback 인사말
+                return {
+                    "answer": "안녕하세요! 돌콩이입니다 :) 업무 관련해서 궁금하신 점이 있으시면 언제든 물어봐 주세요!",
+                    "tokens_used": {"input": 0, "output": 0, "total": 0},
+                    "model": self.model_name
+                }
+            
+            answer = response.text.strip()
+            
+            if not answer:
+                # fallback 인사말
+                return {
+                    "answer": "안녕하세요! 돌콩이입니다 :) 업무 관련해서 궁금하신 점이 있으시면 언제든 물어봐 주세요!",
+                    "tokens_used": {"input": 0, "output": 0, "total": 0},
+                    "model": self.model_name
+                }
+            
+            # 토큰 사용량 계산 (근사치)
+            input_tokens = len(greeting_prompt.split()) * 1.3
+            output_tokens = len(answer.split()) * 1.3
+            
+            logger.info(f"✅ 인사말 응답 생성 완료: {answer[:50]}...")
+            
+            return {
+                "answer": answer,
+                "tokens_used": {
+                    "input": int(input_tokens),
+                    "output": int(output_tokens),
+                    "total": int(input_tokens + output_tokens)
+                },
+                "model": self.model_name
+            }
+            
+        except Exception as e:
+            logger.error(f"인사말 응답 생성 실패: {e}")
+            # fallback 인사말
+            return {
+                "answer": "안녕하세요! 돌콩이입니다 :) 업무 관련해서 궁금하신 점이 있으시면 언제든 물어봐 주세요!",
+                "tokens_used": {"input": 0, "output": 0, "total": 0},
+                "model": self.model_name
+            }
 
     async def generate_response(self, 
                                question: str, 
@@ -455,6 +572,135 @@ JSON 형식으로만 응답해주세요:
                     logger.error(f"Gemini 모델 재구성 실패: {reconfig_error}")
             
             raise Exception(f"LLM 응답 생성 실패: {str(e)}")
+
+    async def check_if_company_policy_related(self, question: str) -> Dict[str, Any]:
+        """
+        질문이 사내 규정/회사 정책과 관련된 것인지 판단합니다.
+        
+        Args:
+            question: 사용자 질문
+            
+        Returns:
+            {
+                "is_related": bool,  # 사내 규정 관련 여부
+                "confidence": float,  # 판단 신뢰도 (0.0-1.0)
+                "reasoning": str  # 판단 이유
+            }
+        """
+        try:
+            # 모델 상태 확인 및 재구성 (필요시)
+            if not hasattr(self, 'model') or self.model is None:
+                logger.warning("Gemini 모델이 초기화되지 않음. 재구성 중...")
+                self._configure_gemini()
+            
+            # 사내 규정 관련성 판단 프롬프트
+            check_prompt = f"""다음 사용자 질문이 회사 규정, 사내 정책, 업무 절차, 복리후생, 인사 규정 등과 관련된 질문인지 판단해주세요.
+
+사용자 질문: {question}
+
+회사 규정 관련 질문 예시:
+- "연차 휴가는 몇 일인가요?"
+- "출장비 신청은 어떻게 하나요?"
+- "육아휴직 기간은?"
+- "야근 수당은 어떻게 받나요?"
+- "복지 포인트는 어떻게 사용하나요?"
+
+회사 규정과 무관한 질문 예시:
+- "오늘 날씨 어때?"
+- "맛집 추천해줘"
+- "파이썬 코딩 방법 알려줘"
+- "주식 투자 조언해줘"
+- "영화 추천해줘"
+
+JSON 형식으로만 응답해주세요:
+{{
+    "is_related": true 또는 false,
+    "confidence": 0.0부터 1.0 사이의 숫자,
+    "reasoning": "판단 이유 (간단히)"
+}}
+
+응답 (JSON만):"""
+            
+            logger.info(f"사내 규정 관련성 체크: {question[:50]}...")
+            
+            # Gemini API 호출
+            generation_config = genai.types.GenerationConfig(
+                max_output_tokens=150,
+                temperature=0.1,
+                top_p=0.8,
+                top_k=40
+            )
+            
+            safety_settings = [
+                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
+            ]
+            
+            response = await asyncio.wait_for(
+                asyncio.to_thread(
+                    self.model.generate_content,
+                    check_prompt,
+                    generation_config=generation_config,
+                    safety_settings=safety_settings
+                ),
+                timeout=10
+            )
+            
+            # 응답 파싱
+            if not response or not hasattr(response, 'text'):
+                logger.warning("사내 규정 관련성 체크 실패: 유효하지 않은 응답")
+                return {"is_related": True, "confidence": 0.0, "reasoning": "판단 실패"}
+            
+            response_text = response.text.strip()
+            
+            # JSON 파싱 시도
+            import json
+            import re
+            
+            # JSON 부분만 추출
+            json_match = re.search(r'\{[^{}]*"is_related"[^{}]*\}', response_text, re.DOTALL)
+            if json_match:
+                json_str = json_match.group(0)
+            else:
+                json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+                if json_match:
+                    json_str = json_match.group(0)
+                else:
+                    json_str = response_text
+            
+            try:
+                result = json.loads(json_str)
+                is_related = result.get("is_related", True)  # 기본값은 관련 있음 (안전하게)
+                confidence = result.get("confidence", 0.5)
+                reasoning = result.get("reasoning", "")
+                
+                logger.info(f"✅ 관련성 체크 완료: is_related={is_related}, confidence={confidence:.2f}")
+                if reasoning:
+                    logger.info(f"   이유: {reasoning}")
+                
+                return {
+                    "is_related": bool(is_related),
+                    "confidence": float(confidence),
+                    "reasoning": str(reasoning)
+                }
+            except json.JSONDecodeError:
+                logger.warning(f"사내 규정 관련성 체크 JSON 파싱 실패: {response_text}")
+                # 파싱 실패 시 키워드 기반 fallback
+                question_lower = question.lower()
+                policy_keywords = ["휴가", "연차", "출장", "복지", "수당", "급여", "인사", "규정", "절차", "신청", "근무", "시간", "야근", "휴직"]
+                if any(keyword in question_lower for keyword in policy_keywords):
+                    return {"is_related": True, "confidence": 0.6, "reasoning": "키워드 기반 판단"}
+                else:
+                    return {"is_related": False, "confidence": 0.4, "reasoning": "키워드 기반 판단"}
+            
+        except asyncio.TimeoutError:
+            logger.warning("사내 규정 관련성 체크 타임아웃")
+            return {"is_related": True, "confidence": 0.0, "reasoning": "타임아웃"}
+        except Exception as e:
+            logger.error(f"사내 규정 관련성 체크 중 오류: {e}")
+            return {"is_related": True, "confidence": 0.0, "reasoning": f"오류: {str(e)}"}
 
     async def evaluate_response_quality(self, question: str, answer: str, context_documents: List[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
