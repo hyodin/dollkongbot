@@ -24,7 +24,7 @@ class BoardSyncScheduler:
         self.is_running = False
         
         # 환경 변수에서 설정 로드
-        self.board_id = os.getenv("BOARD_SYNC_BOARD_ID", "")
+        self.board_id = os.getenv("BOARD_SYNC_BOARD_ID", "6044785668")
         self.title_keyword = os.getenv("BOARD_SYNC_TITLE_KEYWORD", "[복리후생] 직원 인사 복리후생 기준")
         self.cron_schedule = os.getenv("BOARD_SYNC_CRON", "0 2 * * *")  # 매일 새벽 2시 (기본값)
         
