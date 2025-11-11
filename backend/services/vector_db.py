@@ -267,6 +267,22 @@ class VectorDatabase:
         # Step 1: 포인트 생성
         logger.info("Step 1: 포인트 생성 중...")
         points = []
+        existing_faq_orders: Dict[str, int] = {}
+        next_faq_order = 1
+
+        try:
+            current_settings = self.get_all_faq_lvl1_settings()
+            for setting in current_settings:
+                keyword = setting.get("keyword")
+                order = setting.get("order")
+                if keyword is None or order is None:
+                    continue
+                existing_faq_orders[keyword] = order
+                next_faq_order = max(next_faq_order, order + 1)
+        except Exception as e:
+            logger.warning(f"faq_order 초기화 중 오류 발생: {str(e)}")
+
+        newly_assigned_orders: Dict[str, int] = {}
         
         for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
             point_id = str(uuid.uuid4())
@@ -287,6 +303,19 @@ class VectorDatabase:
                 metadata = metadata_list[i]
                 lvl1_keyword = metadata.get("lvl1", "")
                 
+                faq_visible = True if lvl1_keyword else False
+                faq_order_value = 999
+
+                if lvl1_keyword:
+                    if lvl1_keyword in existing_faq_orders:
+                        faq_order_value = existing_faq_orders[lvl1_keyword]
+                    elif lvl1_keyword in newly_assigned_orders:
+                        faq_order_value = newly_assigned_orders[lvl1_keyword]
+                    else:
+                        faq_order_value = next_faq_order
+                        newly_assigned_orders[lvl1_keyword] = faq_order_value
+                        next_faq_order += 1
+
                 payload.update({
                     "search_text": metadata.get("search_text", chunk),
                     "context_text": metadata.get("context_text", chunk),
@@ -302,8 +331,8 @@ class VectorDatabase:
                     "lvl3": metadata.get("lvl3", ""),
                     "lvl4": metadata.get("lvl4", ""),
                     # FAQ 관리 필드 추가 (기본값)
-                    "faq_visible": True if lvl1_keyword else False,  # lvl1이 있으면 노출
-                    "faq_order": 999  # 기본 순서 (나중에 관리자가 변경)
+                    "faq_visible": faq_visible,  # lvl1이 있으면 노출
+                    "faq_order": faq_order_value
                 })
             else:
                 payload.update({
