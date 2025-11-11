@@ -108,9 +108,15 @@ export interface ChatResponse {
 }
 
 // FAQ 관련 인터페이스
-export interface FAQResponse {
+export interface FAQKeyword {
+  keyword: string;
+  visible?: boolean;
+  order?: number;
+}
+
+export interface FAQResponse<T = string[]> {
   status: string;
-  data?: string[];
+  data?: T;
   message?: string;
 }
 
@@ -417,8 +423,8 @@ class ApiClient {
   /**
    * FAQ lvl1 키워드 목록 조회
    */
-  async getFAQLevel1Keywords(): Promise<FAQResponse> {
-    const response = await this.client.get<FAQResponse>('/faq/lvl1');
+  async getFAQLevel1Keywords(): Promise<FAQResponse<FAQKeyword[]>> {
+    const response = await this.client.get<FAQResponse<FAQKeyword[]>>('/faq/lvl1');
     return response.data;
   }
 

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { toast } from 'react-toastify';
-import apiClient from '../api/client';
+import apiClient, { FAQKeyword } from '../api/client';
 import EmailInquiryModal from './EmailInquiryModal';
 
 interface ChatMessage {
@@ -37,13 +37,6 @@ interface ContextDocument {
 
 interface ChatInterfaceProps {
   className?: string;
-}
-
-// FAQ 키워드 타입 (백엔드가 객체로 반환)
-interface FAQKeyword {
-  keyword: string;
-  visible?: boolean;
-  order?: number;
 }
 
 const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
@@ -196,9 +189,21 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
   const loadFAQLevel1Keywords = async () => {
     try {
       setIsLoadingFAQ(true);
-      const response = await apiClient.getHierarchyLevel1();
-      if (response.status === 'success' && response.lvl1_categories) {
-        const lvl1List = response.lvl1_categories;
+      const response = await apiClient.getFAQLevel1Keywords();
+      if (response.status === 'success' && Array.isArray(response.data)) {
+        const normalizedList: FAQKeyword[] = response.data.map((item, index) => {
+          if (typeof item === 'string') {
+            return {
+              keyword: item,
+              visible: true,
+              order: index,
+            };
+          }
+          return item;
+        });
+        const lvl1List = normalizedList
+          .filter((item) => item.keyword.trim().length > 0 && item.visible !== false)
+          .sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
         setFaqLevel1Keywords(lvl1List);
         // 첫 인사 말풍선에 lvl1 버튼 부착
         setMessages(prev => {
@@ -208,7 +213,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
             ...first,
             faqButtons: {
               level: 'lvl1',
-              items: lvl1List
+              items: lvl1List.map((it) => getKeywordString(it))
             }
           };
           return [updatedFirst, ...prev.slice(1)];
@@ -326,13 +331,13 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
         // lvl1 키워드 다시 로드
         loadFAQLevel1Keywords();
         
-        toast.success(`계층 구조 조회 완료: ${response.count}개 항목을 찾았습니다.`);
+        toast.success(`조회 완료: ${response.count}개 항목을 찾았습니다.`);
       } else {
-        toast.warning('해당 계층 구조에 대한 내용을 찾을 수 없습니다.');
+        toast.warning('해당 내용을 찾을 수 없습니다.');
       }
     } catch (error) {
-      console.error('계층 구조 lvl4 내용 조회 실패:', error);
-      toast.warning('계층 구조 조회 중 오류가 발생했습니다.');
+      console.error('답변 조회 실패:', error);
+      toast.warning('조회 중 오류가 발생했습니다.');
       // toast.error는 제거 (잠자는 돌콩이 알림창이 대신 표시됨)
     } finally {
       setIsLoadingFAQ(false);
