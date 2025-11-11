@@ -70,7 +70,8 @@ backend/
 │   ├── faq.py                # FAQ 관리 API
 │   ├── auth.py               # 네이버웍스 인증 API
 │   ├── admin.py              # 관리자 API
-│   └── email.py              # 이메일 발송 API
+│   ├── email.py              # 이메일 발송 API
+│   └── board.py              # 게시판 동기화 API
 │
 ├── services/                  # 비즈니스 로직 서비스
 │   ├── __init__.py
@@ -80,7 +81,9 @@ backend/
 │   ├── gemini_service.py     # Google Gemini LLM 서비스
 │   ├── safe_preprocessor.py  # Kiwi 형태소 분석 전처리
 │   ├── query_normalizer.py   # 검색 쿼리 정규화
-│   └── naverworks_email_service.py  # 네이버웍스 이메일 서비스
+│   ├── naverworks_email_service.py  # 네이버웍스 이메일 서비스
+│   ├── naverworks_board_service.py  # 네이버웍스 게시판 연동
+│   └── scheduler.py          # 정기 동기화 스케줄러
 │
 ├── utils/                     # 유틸리티 함수
 │   ├── __init__.py
@@ -96,7 +99,7 @@ backend/
 
 **역할:**
 - FastAPI 앱 초기화 및 설정
-- 라우터 등록 (upload, search, chat, faq, auth, admin, email)
+- 라우터 등록 (upload, search, chat, faq, auth, admin, email, board)
 - CORS 설정
 - 애플리케이션 라이프사이클 관리
 - 로깅 설정
@@ -120,10 +123,10 @@ backend/
 ##### `upload.py` - 파일 업로드 API
 
 **엔드포인트:**
-- `POST /api/upload` - 파일 업로드 (비동기)
-- `POST /api/upload-sync` - 파일 업로드 (동기, 테스트용)
-- `GET /api/documents` - 업로드된 문서 목록
-- `DELETE /api/documents/{file_id}` - 문서 삭제
+- `POST /upload` - 파일 업로드 (비동기)
+- `POST /upload-sync` - 파일 업로드 (동기, 테스트용)
+- `GET /documents` - 업로드된 문서 목록
+- `DELETE /documents/{file_id}` - 문서 삭제
 
 **주요 흐름:**
 ```
@@ -132,7 +135,7 @@ backend/
 3. FileParser.extract_text() - 텍스트 추출
 4. SafePreprocessor - 형태소 분석 및 전처리
 5. Chunker - 텍스트 청킹
-6. Embedder - KoSBERT 임베딩
+6. KoreanEmbedder - KoSBERT 임베딩
 7. VectorDB.insert_documents() - Qdrant 저장
 ```
 
@@ -143,17 +146,18 @@ backend/
 ##### `search.py` - 문서 검색 API
 
 **엔드포인트:**
-- `POST /api/search` - 의미 기반 문서 검색
-- `GET /api/hierarchy/lvl1` - 대분류 목록
-- `GET /api/hierarchy/lvl2/{lvl1}` - 중분류 목록
-- `GET /api/hierarchy/lvl3/{lvl1}/{lvl2}` - 소분류 목록
+- `POST /search` - 의미 기반 문서 검색
+- `GET /hierarchy/lvl1` - 대분류 목록
+- `GET /hierarchy/lvl2/{lvl1}` - 중분류 목록
+- `GET /hierarchy/lvl3/{lvl1}/{lvl2}` - 소분류 목록
+- `GET /hierarchy/lvl4/{lvl1}/{lvl2}/{lvl3}` - 상세 내용 목록
 
 **검색 흐름:**
 ```
 1. 검색 쿼리 수신
 2. QueryNormalizer - 쿼리 정규화
 3. SafePreprocessor - 형태소 분석
-4. Embedder - 쿼리 임베딩
+4. KoreanEmbedder - 쿼리 임베딩
 5. VectorDB.search_similar() - 벡터 검색
 6. 유사도 점수 정렬 및 반환
 ```
@@ -186,10 +190,11 @@ backend/
 ##### `faq.py` - FAQ 관리 API
 
 **엔드포인트:**
-- `GET /api/faq/lvl1` - FAQ 대분류 목록
-- `GET /api/faq/lvl2/{lvl1}` - 중분류 목록
-- `GET /api/faq/lvl3/{lvl1}/{lvl2}` - 소분류 질문 목록
-- `GET /api/faq/answer/{lvl1}/{lvl2}/{lvl3}` - FAQ 답변 조회
+- `GET /faq/lvl1` - FAQ 대분류 목록
+- `GET /faq/lvl2` - FAQ 중분류 전체 목록
+- `GET /faq/lvl2/{lvl1}` - 특정 대분류에 속한 중분류 목록
+- `GET /faq/lvl3/{lvl2}` - 중분류 아래 질문 목록
+- `GET /faq/answer/{question}` - 특정 질문의 답변 조회
 
 **FAQ 구조:**
 - lvl1: 대분류 (예: "시공문의", "제품안내")
@@ -241,6 +246,19 @@ backend/
 
 ---
 
+##### `board.py` - 게시판 동기화 API
+
+**엔드포인트:**
+- `POST /board/sync-attachments` - 네이버웍스 게시판 첨부파일 동기화 시작 (백그라운드)
+- `GET /board/status` - 동기화 상태 조회
+- `GET /board/history` - 최근 동기화 이력 조회
+
+**기능:**
+- 게시판 첨부파일 다운로드 및 파일 파싱 파이프라인 재사용
+- 관리자 인증을 통한 수동 동기화 트리거 및 상태 모니터링
+
+---
+
 #### 3. `services/` - 비즈니스 로직 서비스
 
 ##### `vector_db.py` - Qdrant 벡터 데이터베이스 연동
@@ -269,7 +287,7 @@ backend/
 
 ##### `embedder.py` - KoSBERT 임베딩 서비스
 
-**주요 클래스:** `Embedder`
+**주요 클래스:** `KoreanEmbedder`
 
 **모델:** `jhgan/ko-sbert-nli` (768차원)
 
@@ -311,7 +329,7 @@ backend/
 
 ##### `chunker.py` - 텍스트 청킹 서비스
 
-**주요 클래스:** `Chunker`
+**주요 클래스:** `TextChunker`
 
 **청킹 전략:**
 - 문장 단위 분할
@@ -322,7 +340,7 @@ backend/
 
 ##### `safe_preprocessor.py` - Kiwi 형태소 분석 전처리
 
-**주요 클래스:** `SafePreprocessor`
+**주요 클래스:** `SafeKoreanPreprocessor`
 
 **기능:**
 - Kiwi 형태소 분석기 사용
@@ -347,6 +365,22 @@ backend/
 **기능:**
 - 네이버웍스 이메일 API 연동
 - 관리자에게 문의 이메일 발송
+
+---
+
+##### `naverworks_board_service.py` - 네이버웍스 게시판 서비스
+
+**기능:**
+- 네이버웍스 게시판 글/첨부파일 조회
+- 게시판 동기화 시 파일 다운로드 및 메타데이터 생성
+
+---
+
+##### `scheduler.py` - 정기 동기화 스케줄러
+
+**기능:**
+- 게시판/FAQ 등 정기 동기화 작업 예약
+- 애플리케이션 시작 시 스케줄러 초기화 및 종료 시 정리
 
 ---
 
@@ -457,17 +491,21 @@ frontend/
 #### 3. `components/ChatInterface.tsx` - 채팅 인터페이스
 
 **주요 기능:**
-- 채팅 메시지 표시
-- 사용자 입력 처리
-- RAG 채팅 API 호출
-- 스트리밍 응답 처리
-- 대화 기록 관리
+- 채팅 메시지 표시 및 사용자 입력 처리
+- RAG 채팅 API 호출 및 응답 렌더링
+- FAQ 계층형 키워드 탐색(버튼) 지원
+- 답변 품질 평가 결과 표시 및 메일 문의 연계
 
 **상태:**
 ```typescript
 - messages: 채팅 메시지 배열
-- isTyping: 응답 생성 중 여부
-- chatHistory: 대화 기록 (RAG 컨텍스트용)
+- inputMessage: 입력 중인 질문
+- isLoading: 답변 생성 중 여부
+- faqLevel1Keywords / faqLevel2Keywords / faqLevel3Questions: FAQ 계층 데이터
+- selectedLevel1 / selectedLevel2: FAQ 선택 상태
+- isLoadingFAQ: FAQ 로딩 상태
+- showEmailModal: 메일 문의 모달 표시 여부
+- lastUserQuestion / lastChatResponse: 최근 문의/답변 저장 (문의용)
 ```
 
 ---
@@ -501,13 +539,19 @@ frontend/
 - 에러 처리
 - 타임아웃 설정
 
-**주요 메서드:**
+**주요 메서드 (일부):**
 ```typescript
-- uploadFileSync()      # 파일 업로드
-- search()              # 문서 검색
-- chat()                # RAG 채팅
-- getDocuments()        # 문서 목록
-- deleteDocument()      # 문서 삭제
+- uploadFileSync()             # 파일 업로드
+- search()                    # 문서 검색
+- chat()                      # RAG 채팅
+- getHierarchyLevel1()        # lvl1 계층 키워드 조회
+- getHierarchyLevel2()        # lvl2 계층 키워드 조회
+- getHierarchyLevel3()        # lvl3 계층 키워드 조회
+- getHierarchyLevel4()        # lvl4 상세 내용 조회
+- getFAQLevel1Keywords()      # FAQ 대분류 조회
+- getFAQLevel2ByLevel1()      # FAQ 중분류 조회
+- getFAQLevel3Questions()     # FAQ 질문 조회
+- getFAQAnswer()              # FAQ 답변 조회
 ```
 
 **기본 URL:** `/api` (프록시를 통해 백엔드로 전달)
@@ -542,7 +586,7 @@ frontend/
    - XLSX: openpyxl (병합된 셀 처리)
 6. services/safe_preprocessor.py - 형태소 분석
 7. services/chunker.py - 텍스트 청킹
-8. services/embedder.py - KoSBERT 임베딩
+8. services/embedder.py (KoreanEmbedder) - KoSBERT 임베딩
 9. services/vector_db.py - Qdrant 저장
 10. 응답 반환
 ```
@@ -561,7 +605,7 @@ frontend/
 4. routers/chat.py - 질문 수신
 5. services/query_normalizer.py - 쿼리 정규화
 6. services/safe_preprocessor.py - 형태소 분석
-7. services/embedder.py - 쿼리 임베딩
+7. services/embedder.py (KoreanEmbedder) - 쿼리 임베딩
 8. services/vector_db.py - 유사 문서 검색
 9. services/gemini_service.py - RAG 응답 생성
    - 컨텍스트: 검색된 문서들
@@ -621,25 +665,28 @@ frontend/
 ## 🌐 API 엔드포인트
 
 ### 파일 업로드
-- `POST /api/upload` - 파일 업로드 (비동기)
-- `POST /api/upload-sync` - 파일 업로드 (동기)
-- `GET /api/documents` - 문서 목록
-- `DELETE /api/documents/{file_id}` - 문서 삭제
+- `POST /upload` - 파일 업로드 (비동기)
+- `POST /upload-sync` - 파일 업로드 (동기)
+- `GET /documents` - 문서 목록
+- `DELETE /documents/{file_id}` - 문서 삭제
 
-### 문서 검색
-- `POST /api/search` - 의미 기반 검색
-- `GET /api/hierarchy/lvl1` - 대분류 목록
-- `GET /api/hierarchy/lvl2/{lvl1}` - 중분류 목록
-- `GET /api/hierarchy/lvl3/{lvl1}/{lvl2}` - 소분류 목록
+### 문서 검색 & 계층 조회
+- `POST /search` - 의미 기반 검색
+- `GET /hierarchy/lvl1` - 대분류 목록
+- `GET /hierarchy/lvl2/{lvl1}` - 중분류 목록
+- `GET /hierarchy/lvl3/{lvl1}/{lvl2}` - 소분류 목록
+- `GET /hierarchy/lvl4/{lvl1}/{lvl2}/{lvl3}` - 상세 내용 목록
+- `GET /search/stats` - 검색 통계
 
 ### RAG 채팅
 - `POST /chat` - RAG 기반 채팅 응답
 
 ### FAQ
-- `GET /api/faq/lvl1` - FAQ 대분류
-- `GET /api/faq/lvl2/{lvl1}` - FAQ 중분류
-- `GET /api/faq/lvl3/{lvl1}/{lvl2}` - FAQ 질문
-- `GET /api/faq/answer/{lvl1}/{lvl2}/{lvl3}` - FAQ 답변
+- `GET /faq/lvl1` - FAQ 대분류
+- `GET /faq/lvl2` - FAQ 중분류 전체 목록
+- `GET /faq/lvl2/{lvl1}` - 특정 대분류의 중분류
+- `GET /faq/lvl3/{lvl2}` - FAQ 질문 목록
+- `GET /faq/answer/{question}` - FAQ 답변
 
 ### 인증
 - `GET /auth/login` - 로그인 URL 생성
@@ -653,6 +700,11 @@ frontend/
 
 ### 이메일
 - `POST /email/send` - 문의 이메일 발송
+
+### 게시판 동기화
+- `POST /board/sync-attachments` - 게시판 첨부파일 동기화 시작
+- `GET /board/status` - 동기화 상태 조회
+- `GET /board/history` - 동기화 이력 조회
 
 ---
 
