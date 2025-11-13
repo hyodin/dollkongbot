@@ -751,7 +751,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
               <img src="./assets/dollkong.png" alt="돌콩이" />
             </div>
             <div className="dollkong-typing-indicator">
-              <span>돌콩이가 답변을 준비하고 있어요...</span>
+              <span>잠만... 나 문서 뒤지는 중...</span>
               <div className="dollkong-typing-dots">
                 <span></span>
                 <span></span>

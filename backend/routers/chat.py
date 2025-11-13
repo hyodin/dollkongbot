@@ -184,7 +184,7 @@ async def chat_with_documents(request: ChatRequest):
             
             total_time = time.time() - start_time
             response = ChatResponse(
-                answer="업무 질문만 가능합니다.",
+                answer="사내규정 전문가로서 드릴 말씀이 없군요.. 규정에 대한 질문만 해주세요 !🧐",
                 question=request.question,
                 context_used=False,
                 context_documents=[],
