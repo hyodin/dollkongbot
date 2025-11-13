@@ -432,7 +432,23 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ className = '' }) => {
 
   // 채팅 기록 삭제
   const clearChat = () => {
-    setMessages([createGreetingMessage()]);
+    resetToLevel1();
+    const greeting = createGreetingMessage();
+
+    if (faqLevel1Keywords.length > 0) {
+      const greetingWithButtons: ChatMessage = {
+        ...greeting,
+        faqButtons: {
+          level: 'lvl1',
+          items: faqLevel1Keywords.map((it) => getKeywordString(it))
+        }
+      };
+      setMessages([greetingWithButtons]);
+    } else {
+      setMessages([greeting]);
+      loadFAQLevel1Keywords();
+    }
+
     toast.info('채팅 기록이 삭제되었습니다.');
   };
 
